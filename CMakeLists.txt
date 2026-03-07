@@ -5,16 +5,30 @@ project(parallel-translation
     LANGUAGES CXX
 )
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+include(FetchContent)
+FetchContent_Declare(
+    CLI11
+    GIT_REPOSITORY https://github.com/CLIUtils/CLI11.git
+    GIT_TAG        v2.4.2
+)
+FetchContent_MakeAvailable(CLI11)
 
 add_executable(parallel-translation
     src/main.cpp
 )
+
+target_link_libraries(parallel-translation PRIVATE CLI11::CLI11)
 
 target_compile_options(parallel-translation PRIVATE
     -Wall
     -Wextra
     -Wpedantic
 )
+
+enable_testing()
+add_subdirectory(tests)

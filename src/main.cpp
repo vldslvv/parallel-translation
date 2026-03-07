@@ -1,38 +1,24 @@
 #include <iostream>
-#include <string_view>
+#include <string>
 
-static constexpr std::string_view VERSION = "0.1.0";
-static constexpr std::string_view PROGRAM = "parallel-translation";
+#include <CLI/CLI.hpp>
 
-static void print_version() {
-    std::cout << PROGRAM << " " << VERSION << "\n";
-}
-
-static void print_help() {
-    std::cout << "Usage: " << PROGRAM << " [OPTIONS]\n"
-              << "\n"
-              << "Options:\n"
-              << "  --help      Show this help message and exit\n"
-              << "  --version   Show version information and exit\n";
-}
+static constexpr auto VERSION = "0.1.0";
 
 int main(int argc, char* argv[]) {
-    if (argc < 2) {
-        print_help();
-        return 0;
-    }
+    CLI::App app{"parallel-translation"};
+    app.set_version_flag("--version,-v", VERSION);
 
-    const std::string_view arg{argv[1]};
+    std::string input;
+    std::string output;
 
-    if (arg == "--help" || arg == "-h") {
-        print_help();
-    } else if (arg == "--version" || arg == "-v") {
-        print_version();
-    } else {
-        std::cerr << PROGRAM << ": unknown option '" << arg << "'\n"
-                  << "Try '" << PROGRAM << " --help' for more information.\n";
-        return 1;
-    }
+    app.add_option("--input,-i", input, "Input file path")->required();
+    app.add_option("--output,-o", output, "Output file path")->required();
+
+    CLI11_PARSE(app, argc, argv);
+
+    std::cout << "Input:  " << input << "\n";
+    std::cout << "Output: " << output << "\n";
 
     return 0;
 }
