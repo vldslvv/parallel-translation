@@ -21,18 +21,29 @@ FetchContent_Declare(
     GIT_REPOSITORY https://github.com/catchorg/Catch2.git
     GIT_TAG        v3.7.1
 )
-FetchContent_MakeAvailable(CLI11 Catch2)
+FetchContent_Declare(
+    httplib
+    GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
+    GIT_TAG        v0.18.1
+)
+FetchContent_Declare(
+    nlohmann_json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG        v3.11.3
+)
+FetchContent_MakeAvailable(CLI11 Catch2 httplib nlohmann_json)
 
 add_executable(parallel-translation
     src/main.cpp
     src/app.cpp
     src/translators/stub.cpp
+    src/translators/ollama.cpp
     src/readers/txt.cpp
     src/writers/txt.cpp
 )
 
 target_include_directories(parallel-translation PRIVATE src)
-target_link_libraries(parallel-translation PRIVATE CLI11::CLI11)
+target_link_libraries(parallel-translation PRIVATE CLI11::CLI11 httplib::httplib nlohmann_json::nlohmann_json)
 
 target_compile_options(parallel-translation PRIVATE
     -Wall
