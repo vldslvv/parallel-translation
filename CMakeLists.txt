@@ -16,12 +16,19 @@ FetchContent_Declare(
     GIT_REPOSITORY https://github.com/CLIUtils/CLI11.git
     GIT_TAG        v2.4.2
 )
-FetchContent_MakeAvailable(CLI11)
+FetchContent_Declare(
+    Catch2
+    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+    GIT_TAG        v3.7.1
+)
+FetchContent_MakeAvailable(CLI11 Catch2)
 
 add_executable(parallel-translation
     src/main.cpp
+    src/translators/stub.cpp
 )
 
+target_include_directories(parallel-translation PRIVATE src)
 target_link_libraries(parallel-translation PRIVATE CLI11::CLI11)
 
 target_compile_options(parallel-translation PRIVATE

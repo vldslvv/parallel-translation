@@ -3,6 +3,8 @@
 
 #include <CLI/CLI.hpp>
 
+#include "translator.hpp"
+
 static constexpr auto VERSION = "0.1.0";
 
 int main(int argc, char* argv[]) {
@@ -16,6 +18,9 @@ int main(int argc, char* argv[]) {
     app.add_option("--output,-o", output, "Output file path")->required();
 
     CLI11_PARSE(app, argc, argv);
+
+    Translator translate = stub_translator;
+    std::cout << translate("Hello, world!") << "\n";
 
     std::cout << "Input:  " << input << "\n";
     std::cout << "Output: " << output << "\n";
