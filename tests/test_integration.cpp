@@ -15,7 +15,7 @@ static std::string read_file(const char* path) {
 }
 
 TEST_CASE("translates input file to output file", "[integration]") {
-    const char* argv[] = {"app", "-i", INPUT, "-o", OUTPUT};
+    const char* argv[] = {"app", "--backend", "stub", "-i", INPUT, "-o", OUTPUT};
 
     CHECK(run(std::size(argv), const_cast<char**>(argv)) == 0);
 
@@ -29,7 +29,7 @@ TEST_CASE("translates input file to output file", "[integration]") {
 }
 
 TEST_CASE("errors on non-existent input file", "[integration]") {
-    const char* argv[] = {"app", "-i", ASSETS_DIR "/nonexistent.txt", "-o", OUTPUT};
+    const char* argv[] = {"app", "--backend", "stub", "-i", ASSETS_DIR "/nonexistent.txt", "-o", OUTPUT};
 
     CHECK(run(std::size(argv), const_cast<char**>(argv)) == 1);
 }

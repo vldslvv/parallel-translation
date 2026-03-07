@@ -31,11 +31,17 @@ FetchContent_Declare(
     GIT_REPOSITORY https://github.com/nlohmann/json.git
     GIT_TAG        v3.11.3
 )
-FetchContent_MakeAvailable(CLI11 Catch2 httplib nlohmann_json)
+FetchContent_Declare(
+    tomlplusplus
+    GIT_REPOSITORY https://github.com/marzer/tomlplusplus.git
+    GIT_TAG        v3.4.0
+)
+FetchContent_MakeAvailable(CLI11 Catch2 httplib nlohmann_json tomlplusplus)
 
 add_executable(parallel-translation
     src/main.cpp
     src/app.cpp
+    src/config.cpp
     src/translators/stub.cpp
     src/translators/ollama.cpp
     src/readers/txt.cpp
@@ -43,7 +49,7 @@ add_executable(parallel-translation
 )
 
 target_include_directories(parallel-translation PRIVATE src)
-target_link_libraries(parallel-translation PRIVATE CLI11::CLI11 httplib::httplib nlohmann_json::nlohmann_json)
+target_link_libraries(parallel-translation PRIVATE CLI11::CLI11 httplib::httplib nlohmann_json::nlohmann_json tomlplusplus::tomlplusplus)
 
 target_compile_options(parallel-translation PRIVATE
     -Wall
