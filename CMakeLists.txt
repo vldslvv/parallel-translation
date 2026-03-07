@@ -26,6 +26,8 @@ FetchContent_MakeAvailable(CLI11 Catch2)
 add_executable(parallel-translation
     src/main.cpp
     src/translators/stub.cpp
+    src/readers/txt.cpp
+    src/writers/txt.cpp
 )
 
 target_include_directories(parallel-translation PRIVATE src)
