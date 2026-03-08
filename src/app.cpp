@@ -1,14 +1,16 @@
 #include "app.hpp"
 
+#include <chrono>
+#include <deque>
 #include <future>
 #include <semaphore>
 #include <string>
-#include <vector>
 
 #include <CLI/CLI.hpp>
 #include <spdlog/spdlog.h>
 
 #include "config.hpp"
+#include "exit_codes.hpp"
 #include "reader.hpp"
 #include "translator.hpp"
 #include "translators/ollama.hpp"
@@ -19,20 +21,51 @@ static int translate_file(const Reader& read, const Translator& translate, const
     auto writer = write(output);
     if (!writer.is_open()) {
         spdlog::error("cannot open output file: {}", output);
-        return 1;
+        return exit_code::output_error;
     }
 
-    std::counting_semaphore<1024> sem{parallelism};
-    std::vector<std::pair<std::string, std::future<std::string>>> work;
+    constexpr int sem_max = 1024;
+    if (parallelism > sem_max) {
+        spdlog::error("parallelism {} exceeds maximum {}", parallelism, sem_max);
+        return exit_code::usage_error;
+    }
+    std::counting_semaphore<sem_max> sem{parallelism};
+    std::deque<std::pair<std::string, std::future<std::string>>> work;
+
+    auto flush = [&work, &writer]() -> int {
+        while (!work.empty()) {
+            auto& [original, fut] = work.front();
+            if (fut.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
+                break;
+
+            std::string translation;
+            try {
+                translation = fut.get();
+            } catch (const std::exception& e) {
+                spdlog::error("translation failed: {}", e.what());
+                return exit_code::runtime_error;
+            }
+            for (auto chunk : {std::string_view{original}, std::string_view{"\n"},
+                               std::string_view{translation}, std::string_view{"\n\n"}})
+                if (auto r = writer.write(chunk); !r) {
+                    spdlog::error("{}", r.error());
+                    return exit_code::output_error;
+                }
+            work.pop_front();
+        }
+        return 0;
+    };
 
     // Dispatch: one async task per sentence, limited by semaphore
     for (const auto& item : read(input)) {
         if (!item) {
             spdlog::error("{}", item.error());
-            return 1;
+            return exit_code::input_error;
         }
         spdlog::debug("{}", *item);
         sem.acquire();
+        if (auto rc = flush(); rc != 0)
+            return rc;
         work.emplace_back(*item, std::async(std::launch::async,
                                             [&sem, &translate, sentence = *item]() -> std::string {
                                                 struct Release {
@@ -43,21 +76,20 @@ static int translate_file(const Reader& read, const Translator& translate, const
                                             }));
     }
 
-    // Collect in order, stream to writer
+    // Drain remaining
     for (auto& [original, fut] : work) {
         std::string translation;
         try {
             translation = fut.get();
         } catch (const std::exception& e) {
             spdlog::error("translation failed: {}", e.what());
-            return 1;
+            return exit_code::runtime_error;
         }
-
         for (auto chunk : {std::string_view{original}, std::string_view{"\n"},
                            std::string_view{translation}, std::string_view{"\n\n"}})
             if (auto r = writer.write(chunk); !r) {
                 spdlog::error("{}", r.error());
-                return 1;
+                return exit_code::output_error;
             }
     }
     return 0;
@@ -114,7 +146,7 @@ int run(int argc, char* argv[]) {
         translate = make_ollama_translator(cfg.ollama_model, cfg.ollama_host);
     else {
         spdlog::error("unknown backend: {}", backend);
-        return 1;
+        return exit_code::usage_error;
     }
     Writer write = txt_writer;
 

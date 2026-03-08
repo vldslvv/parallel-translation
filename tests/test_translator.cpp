@@ -4,6 +4,7 @@
 #include <string>
 
 #include "app.hpp"
+#include "exit_codes.hpp"
 #include "test_helpers.hpp"
 
 static const char* INPUT = ASSETS_DIR "/latin_example.txt";
@@ -26,5 +27,12 @@ TEST_CASE("errors on non-existent input file", "[integration]") {
     const char* argv[] = {"app", "--backend", "stub", "-i", ASSETS_DIR "/nonexistent.txt",
                           "-o",  OUTPUT};
 
-    CHECK(run(std::size(argv), const_cast<char**>(argv)) == 1);
+    CHECK(run(std::size(argv), const_cast<char**>(argv)) == exit_code::input_error);
+}
+
+TEST_CASE("errors when parallelism exceeds semaphore capacity", "[integration]") {
+    const char* argv[] = {"app", "--backend", "stub",          "-i",  INPUT,
+                          "-o",  OUTPUT,      "--parallelism", "1025"};
+
+    CHECK(run(std::size(argv), const_cast<char**>(argv)) == exit_code::usage_error);
 }
