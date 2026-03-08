@@ -35,4 +35,6 @@ TEST_CASE("errors when parallelism exceeds semaphore capacity", "[integration]")
                           "-o",  OUTPUT,      "--parallelism", "1025"};
 
     CHECK(run(std::size(argv), const_cast<char**>(argv)) == exit_code::usage_error);
+
+    std::remove(OUTPUT);
 }
