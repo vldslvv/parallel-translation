@@ -11,6 +11,33 @@
 #include "translators/ollama.hpp"
 #include "writer.hpp"
 
+static int translate_file(const Reader& read, const Translator& translate, const Writer& write,
+                          std::string_view input, std::string_view output) {
+    std::string translated;
+    for (const auto& item : read(input)) {
+        if (!item) {
+            spdlog::error("{}", item.error());
+            return 1;
+        }
+        spdlog::debug("{}", *item);
+
+        // First, write the original sentence
+        translated += *item;
+        translated += '\n';
+        // Then, translated
+        translated += translate(*item);
+        translated += "\n\n";
+    }
+
+    auto result = write(output, translated);
+    if (!result) {
+        spdlog::error("{}", result.error());
+        return 1;
+    }
+
+    return 0;
+}
+
 int run(int argc, char* argv[]) {
     Config cfg = load_config();
 
@@ -62,27 +89,5 @@ int run(int argc, char* argv[]) {
     }
     Writer write = txt_writer;
 
-    std::string translated;
-    for (const auto& item : read(input)) {
-        if (!item) {
-            spdlog::error("{}", item.error());
-            return 1;
-        }
-        spdlog::debug("{}", *item);
-
-        // First, write the original sentence
-        translated += *item;
-        translated += '\n';
-        // Then, translated
-        translated += translate(*item);
-        translated += "\n\n";
-    }
-
-    auto result = write(output, translated);
-    if (!result) {
-        spdlog::error("{}", result.error());
-        return 1;
-    }
-
-    return 0;
+    return translate_file(read, translate, write, input, output);
 }

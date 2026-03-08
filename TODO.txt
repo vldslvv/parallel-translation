@@ -1,1 +1,5 @@
- - Add clang-tidy, make sure it doesn't scan build dir.
+- Add clang-tidy, make sure it doesn't scan build dir.
+- Be able to calculate coverage
+- PDF support, in and out
+- Add line numbers
+

@@ -3,6 +3,11 @@
 
 #include <spdlog/spdlog.h>
 
+static void trim_trailing_spaces(std::string& s) {
+    while (!s.empty() && s.back() == ' ')
+        s.pop_back();
+}
+
 std::generator<std::expected<std::string, std::string>> txt_reader(std::string_view path) {
     spdlog::debug("reading file: {}", path);
     std::ifstream file{std::string{path}};
@@ -12,18 +17,40 @@ std::generator<std::expected<std::string, std::string>> txt_reader(std::string_v
     }
 
     std::string sentence;
-    char c;
-    while (file.get(c)) {
-        if (sentence.empty() && (c == ' ' || c == '\t' || c == '\r' || c == '\n')) {
+    std::string line;
+
+    while (std::getline(file, line)) {
+        if (!line.empty() && line.back() == '\r')
+            line.pop_back();
+
+        if (line.empty()) {
+            trim_trailing_spaces(sentence);
+            if (!sentence.empty()) {
+                spdlog::debug("yielding sentence ({} bytes)\n{}", sentence.size(), sentence);
+                co_yield sentence;
+                sentence.clear();
+            }
             continue;
         }
-        sentence += c;
-        if (c == '.' || c == '!' || c == '?') {
-            spdlog::debug("yielding sentence ({} bytes)", sentence.size());
-            co_yield sentence;
-            sentence.clear();
+
+        if (!sentence.empty())
+            sentence += ' ';
+
+        for (char c : line) {
+            if (sentence.empty() && (c == ' ' || c == '\t'))
+                continue;
+            sentence += c;
+            if (c == '.' || c == '!' || c == '?') {
+                spdlog::debug("yielding sentence ({} bytes)\n{}", sentence.size(), sentence);
+                co_yield sentence;
+                sentence.clear();
+            }
         }
     }
-    if (sentence.find_first_not_of(" \t\r\n") != std::string::npos)
+
+    trim_trailing_spaces(sentence);
+    if (!sentence.empty()) {
+        spdlog::debug("yielding sentence ({} bytes)\n{}", sentence.size(), sentence);
         co_yield sentence;
+    }
 }
