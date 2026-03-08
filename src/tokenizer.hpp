@@ -10,10 +10,9 @@ struct Token {
 };
 
 inline bool is_separator(char c) {
-    return c == ' ' || c == ',' || c == '.' || c == '!'
-        || c == '?' || c == ';' || c == ':' || c == '-'
-        || c == '(' || c == ')' || c == '[' || c == ']'
-        || c == '"' || c == '\'' || c == '\n' || c == '\t';
+    return c == ' ' || c == ',' || c == '.' || c == '!' || c == '?' || c == ';' || c == ':' ||
+           c == '-' || c == '(' || c == ')' || c == '[' || c == ']' || c == '"' || c == '\'' ||
+           c == '\n' || c == '\t';
 }
 
 inline std::vector<Token> tokenize(std::string_view text) {

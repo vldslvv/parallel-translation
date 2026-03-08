@@ -1,4 +1,4 @@
-.PHONY: all build release clean run test help
+.PHONY: all build release clean run test format help
 
 BUILD_DIR := build
 
@@ -11,6 +11,9 @@ build:
 release:
 	cmake -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=Release
 	cmake --build $(BUILD_DIR)
+
+format:
+	find src tests -name '*.cpp' -o -name '*.hpp' | xargs clang-format -i
 
 clean:
 	rm -rf $(BUILD_DIR)
@@ -29,6 +32,7 @@ help:
 	@echo "  release        Optimized release build"
 	@echo "  run            Build and run the binary"
 	@echo "  test           Build and run tests"
+	@echo "  format         Auto-format source files with clang-format"
 	@echo "  clean          Remove the build directory"
 	@echo "  help           Show this help message"
 	@echo ""

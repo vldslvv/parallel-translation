@@ -1,0 +1,16 @@
+repos:
+  - repo: local
+    hooks:
+      - id: clang-format
+        name: clang-format
+        language: system
+        entry: clang-format --dry-run --Werror
+        types_or: [c++, c]
+        exclude: ^build/
+
+      # - id: clang-tidy
+      #   name: clang-tidy
+      #   language: system
+      #   entry: clang-tidy -p build
+      #   types_or: [c++, c]
+      #   exclude: ^build/
