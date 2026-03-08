@@ -23,6 +23,7 @@ add_executable(test_integration
     ../src/app.cpp
     ../src/config.cpp
     ../src/translators/stub.cpp
+    ../src/translators/pass.cpp
     ../src/translators/ollama.cpp
     ../src/readers/txt.cpp
     ../src/writers/txt.cpp

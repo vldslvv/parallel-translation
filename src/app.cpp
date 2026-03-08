@@ -26,7 +26,7 @@ int run(int argc, char* argv[]) {
 
     app.add_option("--input,-i",   input,   "Input file path")->required();
     app.add_option("--output,-o",  output,  "Output file path")->required();
-    app.add_option("--backend",    backend, "Translation backend: ollama, stub")->capture_default_str();
+    app.add_option("--backend",    backend, "Translation backend: ollama, stub, pass")->capture_default_str();
     app.add_option("--ollama-model", model, "Ollama model name (overrides config)");
     app.add_option("--ollama-host",  host,  "Ollama host URL (overrides config)");
     app.add_option("--log-level",    log_level, "Log level: trace/debug/info/warn/error/critical/off");
@@ -45,18 +45,31 @@ int run(int argc, char* argv[]) {
     spdlog::debug("config: log_level={}", cfg.log_level);
 
     Reader read         = txt_reader;
-    Translator translate = (backend == "stub")
-        ? Translator{stub_translator}
-        : make_ollama_translator(cfg.ollama_model, cfg.ollama_host);
-    Writer write        = txt_writer;
-
-    auto content = read(input);
-    if (!content) {
-        spdlog::error("{}", content.error());
+    Translator translate;
+    if (backend == "stub")
+        translate = stub_translator;
+    else if (backend == "pass")
+        translate = pass_translator;
+    else if (backend == "ollama")
+        translate = make_ollama_translator(cfg.ollama_model, cfg.ollama_host);
+    else {
+        spdlog::error("unknown backend: {}", backend);
         return 1;
     }
+    Writer write        = txt_writer;
 
-    auto result = write(output, translate(*content));
+    std::string translated;
+    for (const auto& item : read(input)) {
+        if (!item) {
+            spdlog::error("{}", item.error());
+            return 1;
+        }
+        // translated += translate(*item);
+        spdlog::debug("{}", *item);
+        translated += *item;
+    }
+
+    auto result = write(output, translated);
     if (!result) {
         spdlog::error("{}", result.error());
         return 1;

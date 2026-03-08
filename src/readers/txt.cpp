@@ -1,18 +1,29 @@
 #include "reader.hpp"
 #include <fstream>
-#include <sstream>
 
 #include <spdlog/spdlog.h>
 
-std::expected<std::string, std::string> txt_reader(std::string_view path) {
+std::generator<std::expected<std::string, std::string>> txt_reader(std::string_view path) {
     spdlog::debug("reading file: {}", path);
     std::ifstream file{std::string{path}};
-    if (!file)
-        return std::unexpected{"cannot open file: " + std::string{path}};
+    if (!file) {
+        co_yield std::unexpected{"cannot open file: " + std::string{path}};
+        co_return;
+    }
 
-    std::ostringstream buf;
-    buf << file.rdbuf();
-    auto content = buf.str();
-    spdlog::debug("read {} bytes from {}", content.size(), path);
-    return content;
+    std::string sentence;
+    char c;
+    while (file.get(c)) {
+        if (sentence.empty() && (c == ' ' || c == '\t' || c == '\r' || c == '\n')) {
+            continue;
+        }
+        sentence += c;
+        if (c == '.' || c == '!' || c == '?') {
+            spdlog::debug("yielding sentence ({} bytes)", sentence.size());
+            co_yield sentence;
+            sentence.clear();
+        }
+    }
+    if (sentence.find_first_not_of(" \t\r\n") != std::string::npos)
+        co_yield sentence;
 }

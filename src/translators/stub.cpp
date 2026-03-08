@@ -7,3 +7,4 @@ std::string stub_translator(std::string_view text) {
         result += (token.kind == TokenKind::Word) ? "Stub" : token.text;
     return result;
 }
+
