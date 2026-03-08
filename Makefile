@@ -1,6 +1,7 @@
-.PHONY: all build release clean run test format help
+.PHONY: all build release clean run test format install uninstall help
 
 BUILD_DIR := build
+PREFIX    := $(HOME)/.local
 
 all: build
 
@@ -11,6 +12,12 @@ build:
 release:
 	cmake -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=Release
 	cmake --build $(BUILD_DIR)
+
+install: release
+	cmake --install $(BUILD_DIR) --prefix $(PREFIX)
+
+uninstall:
+	xargs rm -f < $(BUILD_DIR)/install_manifest.txt
 
 format:
 	find src tests -name '*.cpp' -o -name '*.hpp' | xargs clang-format -i
@@ -32,6 +39,8 @@ help:
 	@echo "  release        Optimized release build"
 	@echo "  run            Build and run the binary"
 	@echo "  test           Build and run tests"
+	@echo "  install        Build (release) and install to system (may need sudo)"
+	@echo "  uninstall      Remove installed files"
 	@echo "  format         Auto-format source files with clang-format"
 	@echo "  clean          Remove the build directory"
 	@echo "  help           Show this help message"

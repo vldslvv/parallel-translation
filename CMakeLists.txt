@@ -54,6 +54,8 @@ add_executable(parallel-translation
     src/writers/txt.cpp
 )
 
+install(TARGETS parallel-translation RUNTIME DESTINATION bin)
+
 target_include_directories(parallel-translation PRIVATE src)
 target_link_libraries(parallel-translation PRIVATE
     CLI11::CLI11 httplib::httplib nlohmann_json::nlohmann_json

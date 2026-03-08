@@ -42,3 +42,6 @@
 
 # CMake out-of-source build directory
 build/
+
+# Texts to translate
+texts/

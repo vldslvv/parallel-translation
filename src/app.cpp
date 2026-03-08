@@ -69,7 +69,13 @@ int run(int argc, char* argv[]) {
             return 1;
         }
         spdlog::debug("{}", *item);
+
+        // First, write the original sentence
+        translated += *item;
+        translated += '\n';
+        // Then, translated
         translated += translate(*item);
+        translated += "\n\n";
     }
 
     auto result = write(output, translated);
