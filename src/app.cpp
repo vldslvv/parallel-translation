@@ -12,9 +12,20 @@
 #include "config.hpp"
 #include "exit_codes.hpp"
 #include "reader.hpp"
+#include "scope_exit.hpp"
 #include "translator.hpp"
 #include "translators/ollama.hpp"
 #include "writer.hpp"
+
+static int write_pair(StreamWriter& writer, std::string_view original,
+                      std::string_view translation) {
+    for (auto chunk : {original, std::string_view{"\n"}, translation, std::string_view{"\n\n"}})
+        if (auto r = writer.write(chunk); !r) {
+            spdlog::error("{}", r.error());
+            return exit_code::output_error;
+        }
+    return 0;
+}
 
 static int translate_file(const Reader& read, const Translator& translate, const Writer& write,
                           std::string_view input, std::string_view output, int parallelism) {
@@ -24,7 +35,7 @@ static int translate_file(const Reader& read, const Translator& translate, const
         return exit_code::output_error;
     }
 
-    constexpr int sem_max = 1024;
+    constexpr int sem_max = 64;
     if (parallelism > sem_max) {
         spdlog::error("parallelism {} exceeds maximum {}", parallelism, sem_max);
         return exit_code::usage_error;
@@ -45,12 +56,8 @@ static int translate_file(const Reader& read, const Translator& translate, const
                 spdlog::error("translation failed: {}", e.what());
                 return exit_code::runtime_error;
             }
-            for (auto chunk : {std::string_view{original}, std::string_view{"\n"},
-                               std::string_view{translation}, std::string_view{"\n\n"}})
-                if (auto r = writer.write(chunk); !r) {
-                    spdlog::error("{}", r.error());
-                    return exit_code::output_error;
-                }
+            if (auto rc = write_pair(writer, original, translation); rc != 0)
+                return rc;
             work.pop_front();
         }
         return 0;
@@ -66,14 +73,15 @@ static int translate_file(const Reader& read, const Translator& translate, const
         sem.acquire();
         if (auto rc = flush(); rc != 0)
             return rc;
-        work.emplace_back(*item, std::async(std::launch::async,
-                                            [&sem, &translate, sentence = *item]() -> std::string {
-                                                struct Release {
-                                                    std::counting_semaphore<1024>& s;
-                                                    ~Release() { s.release(); }
-                                                } g{sem};
-                                                return translate(sentence);
-                                            }));
+
+        // Sentence copies item value so it's retained after outer loop advances
+        auto fn = [&sem, &translate, sentence = *item]() -> std::string {
+            // Releases semaphore regardless of execution outcome
+            ScopeExit guard{[&sem] { sem.release(); }};
+            return translate(sentence);
+        };
+        auto fut = std::async(std::launch::async, fn);
+        work.emplace_back(*item, std::move(fut));
     }
 
     // Drain remaining
@@ -85,12 +93,8 @@ static int translate_file(const Reader& read, const Translator& translate, const
             spdlog::error("translation failed: {}", e.what());
             return exit_code::runtime_error;
         }
-        for (auto chunk : {std::string_view{original}, std::string_view{"\n"},
-                           std::string_view{translation}, std::string_view{"\n\n"}})
-            if (auto r = writer.write(chunk); !r) {
-                spdlog::error("{}", r.error());
-                return exit_code::output_error;
-            }
+        if (auto rc = write_pair(writer, original, translation); rc != 0)
+            return rc;
     }
     return 0;
 }
