@@ -52,6 +52,7 @@ add_executable(parallel-translation
     src/translators/ollama.cpp
     src/readers/txt.cpp
     src/writers/txt.cpp
+    src/formatters/plain.cpp
 )
 
 install(TARGETS parallel-translation RUNTIME DESTINATION bin)

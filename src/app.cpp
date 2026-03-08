@@ -12,23 +12,25 @@
 #include "common/exit_codes.hpp"
 #include "common/scope_exit.hpp"
 #include "config.hpp"
+#include "formatters/formatter.hpp"
 #include "readers/reader.hpp"
 #include "translators/ollama.hpp"
 #include "translators/translator.hpp"
 #include "writers/writer.hpp"
 
-static int write_pair(StreamWriter& writer, std::string_view original,
+static int write_pair(StreamWriter& writer, const Formatter& format, std::string_view original,
                       std::string_view translation) {
-    for (auto chunk : {original, std::string_view{"\n"}, translation, std::string_view{"\n\n"}})
-        if (auto r = writer.write(chunk); !r) {
-            spdlog::error("{}", r.error());
-            return exit_code::output_error;
-        }
+    auto out = format(original, translation);
+    if (auto r = writer.write(out); !r) {
+        spdlog::error("{}", r.error());
+        return exit_code::output_error;
+    }
     return 0;
 }
 
-static int translate_file(const Reader& read, const Translator& translate, const Writer& write,
-                          std::string_view input, std::string_view output, int parallelism) {
+static int translate_file(const Reader& read, const Translator& translate, const Formatter& format,
+                          const Writer& write, std::string_view input, std::string_view output,
+                          int parallelism) {
     auto writer = write(output);
     if (!writer.is_open()) {
         spdlog::error("cannot open output file: {}", output);
@@ -43,7 +45,7 @@ static int translate_file(const Reader& read, const Translator& translate, const
     std::counting_semaphore<sem_max> sem{parallelism};
     std::deque<std::pair<std::string, std::future<std::string>>> work;
 
-    auto flush = [&work, &writer]() -> int {
+    auto flush = [&work, &writer, &format]() -> int {
         while (!work.empty()) {
             auto& [original, fut] = work.front();
             if (fut.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
@@ -56,7 +58,7 @@ static int translate_file(const Reader& read, const Translator& translate, const
                 spdlog::error("translation failed: {}", e.what());
                 return exit_code::runtime_error;
             }
-            if (auto rc = write_pair(writer, original, translation); rc != 0)
+            if (auto rc = write_pair(writer, format, original, translation); rc != 0)
                 return rc;
             work.pop_front();
         }
@@ -93,7 +95,7 @@ static int translate_file(const Reader& read, const Translator& translate, const
             spdlog::error("translation failed: {}", e.what());
             return exit_code::runtime_error;
         }
-        if (auto rc = write_pair(writer, original, translation); rc != 0)
+        if (auto rc = write_pair(writer, format, original, translation); rc != 0)
             return rc;
     }
     return 0;
@@ -141,6 +143,7 @@ int run(int argc, char* argv[]) {
     spdlog::debug("config: parallelism={}", parallelism);
 
     Reader read = txt_reader;
+    Formatter format = plain_formatter;
     Translator translate;
     if (backend == "stub")
         translate = stub_translator;
@@ -154,5 +157,5 @@ int run(int argc, char* argv[]) {
     }
     Writer write = txt_writer;
 
-    return translate_file(read, translate, write, input, output, parallelism);
+    return translate_file(read, translate, format, write, input, output, parallelism);
 }
