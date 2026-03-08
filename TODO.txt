@@ -1,0 +1,1 @@
+ - Add clang-tidy, make sure it doesn't scan build dir.
