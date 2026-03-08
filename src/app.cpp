@@ -16,27 +16,12 @@
 #include "readers/reader.hpp"
 #include "translators/ollama.hpp"
 #include "translators/translator.hpp"
+#include "writers/formatted_writer.hpp"
 #include "writers/writer.hpp"
 
-static int write_pair(StreamWriter& writer, const Formatter& format, std::string_view original,
-                      std::string_view translation) {
-    auto out = format(original, translation);
-    if (auto r = writer.write(out); !r) {
-        spdlog::error("{}", r.error());
-        return exit_code::output_error;
-    }
-    return 0;
-}
-
-static int translate_file(const Reader& read, const Translator& translate, const Formatter& format,
-                          const Writer& write, std::string_view input, std::string_view output,
+static int translate_file(const Reader& read, const Translator& translate,
+                          const FormattedWriter& formatted_write, std::string_view input,
                           int parallelism) {
-    auto writer = write(output);
-    if (!writer.is_open()) {
-        spdlog::error("cannot open output file: {}", output);
-        return exit_code::output_error;
-    }
-
     constexpr int sem_max = 64;
     if (parallelism > sem_max) {
         spdlog::error("parallelism {} exceeds maximum {}", parallelism, sem_max);
@@ -45,7 +30,7 @@ static int translate_file(const Reader& read, const Translator& translate, const
     std::counting_semaphore<sem_max> sem{parallelism};
     std::deque<std::pair<std::string, std::future<std::string>>> work;
 
-    auto flush = [&work, &writer, &format]() -> int {
+    auto flush = [&work, &formatted_write]() -> int {
         while (!work.empty()) {
             auto& [original, fut] = work.front();
             if (fut.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
@@ -58,7 +43,7 @@ static int translate_file(const Reader& read, const Translator& translate, const
                 spdlog::error("translation failed: {}", e.what());
                 return exit_code::runtime_error;
             }
-            if (auto rc = write_pair(writer, format, original, translation); rc != 0)
+            if (auto rc = formatted_write(original, translation); rc != 0)
                 return rc;
             work.pop_front();
         }
@@ -95,7 +80,7 @@ static int translate_file(const Reader& read, const Translator& translate, const
             spdlog::error("translation failed: {}", e.what());
             return exit_code::runtime_error;
         }
-        if (auto rc = write_pair(writer, format, original, translation); rc != 0)
+        if (auto rc = formatted_write(original, translation); rc != 0)
             return rc;
     }
     return 0;
@@ -156,6 +141,12 @@ int run(int argc, char* argv[]) {
         return exit_code::usage_error;
     }
     Writer write = txt_writer;
+    auto writer = write(output);
+    if (!writer.is_open()) {
+        spdlog::error("cannot open output file: {}", output);
+        return exit_code::output_error;
+    }
+    FormattedWriter formatted_write = make_formatted_writer(writer, format);
 
-    return translate_file(read, translate, format, write, input, output, parallelism);
+    return translate_file(read, translate, formatted_write, input, parallelism);
 }

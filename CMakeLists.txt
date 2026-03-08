@@ -52,6 +52,7 @@ add_executable(parallel-translation
     src/translators/ollama.cpp
     src/readers/txt.cpp
     src/writers/txt.cpp
+    src/writers/formatted_writer.cpp
     src/formatters/plain.cpp
 )
 

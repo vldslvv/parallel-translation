@@ -20,6 +20,7 @@ add_executable(test_integration
     ../src/translators/ollama.cpp
     ../src/readers/txt.cpp
     ../src/writers/txt.cpp
+    ../src/writers/formatted_writer.cpp
     ../src/formatters/plain.cpp
 )
 target_include_directories(test_integration PRIVATE ${CMAKE_SOURCE_DIR}/src)
