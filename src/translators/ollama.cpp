@@ -4,8 +4,11 @@
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 
+#include <spdlog/spdlog.h>
+
 Translator make_ollama_translator(std::string model, std::string host) {
     return [model, host](std::string_view text) -> std::string {
+        spdlog::debug("ollama request: host={} model={} input_bytes={}", host, model, text.size());
         httplib::Client client{host};
 
         nlohmann::json body = {
@@ -24,6 +27,8 @@ Translator make_ollama_translator(std::string model, std::string host) {
         if (res->status != 200)
             throw std::runtime_error{"ollama: HTTP " + std::to_string(res->status) + " — " + res->body};
 
-        return nlohmann::json::parse(res->body)["message"]["content"].get<std::string>();
+        auto result = nlohmann::json::parse(res->body)["message"]["content"].get<std::string>();
+        spdlog::debug("ollama response: output_bytes={}", result.size());
+        return result;
     };
 }

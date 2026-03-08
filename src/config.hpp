@@ -6,6 +6,8 @@ struct Config {
     std::string ollama_model = "llama3";
     std::string source_lang  = "la";
     std::string target_lang  = "en";
+    std::string log_level    = "warn";
+    std::string config_file;  // path used, empty if none found
 };
 
 // Loads config from (in order of increasing priority):

@@ -34,6 +34,7 @@ target_link_libraries(test_integration PRIVATE
     httplib::httplib
     nlohmann_json::nlohmann_json
     tomlplusplus::tomlplusplus
+    spdlog::spdlog
 )
 target_compile_definitions(test_integration PRIVATE ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")
 catch_discover_tests(test_integration)
