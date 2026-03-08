@@ -4,7 +4,7 @@
 #include <string>
 
 #include "app.hpp"
-#include "exit_codes.hpp"
+#include "common/exit_codes.hpp"
 #include "test_helpers.hpp"
 
 static const char* INPUT = ASSETS_DIR "/latin_example.txt";

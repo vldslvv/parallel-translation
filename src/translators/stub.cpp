@@ -1,4 +1,4 @@
-#include "tokenizer.hpp"
+#include "common/tokenizer.hpp"
 #include "translator.hpp"
 
 std::string stub_translator(std::string_view text) {

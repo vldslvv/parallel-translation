@@ -9,13 +9,13 @@
 #include <CLI/CLI.hpp>
 #include <spdlog/spdlog.h>
 
+#include "common/exit_codes.hpp"
+#include "common/scope_exit.hpp"
 #include "config.hpp"
-#include "exit_codes.hpp"
-#include "reader.hpp"
-#include "scope_exit.hpp"
-#include "translator.hpp"
+#include "readers/reader.hpp"
 #include "translators/ollama.hpp"
-#include "writer.hpp"
+#include "translators/translator.hpp"
+#include "writers/writer.hpp"
 
 static int write_pair(StreamWriter& writer, std::string_view original,
                       std::string_view translation) {
