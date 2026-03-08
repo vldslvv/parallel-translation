@@ -29,6 +29,11 @@ Translator make_ollama_translator(std::string model, std::string host) {
                                      res->body};
 
         auto result = nlohmann::json::parse(res->body)["message"]["content"].get<std::string>();
+        auto end = result.find_last_not_of(" \t\n\r\f\v");
+        if (end != std::string::npos)
+            result.erase(end + 1);
+        else
+            result.clear();
         spdlog::debug("ollama response: output_bytes={}", result.size());
         return result;
     };

@@ -2,4 +2,5 @@
 - Be able to calculate coverage
 - PDF support, in and out
 - Add line numbers
+- Don't translate question marks inside translator -- give warning and do nothing
 

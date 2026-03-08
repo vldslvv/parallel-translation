@@ -8,6 +8,7 @@ struct Config {
     std::string target_lang = "en";
     std::string log_level = "warn";
     std::string config_file; // path used, empty if none found
+    int parallelism = 4;
 };
 
 // Loads config from (in order of increasing priority):

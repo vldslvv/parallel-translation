@@ -4,6 +4,8 @@
 #include <filesystem>
 #include <toml++/toml.hpp>
 
+#include <spdlog/spdlog.h>
+
 static std::filesystem::path config_file_path() {
     const char* xdg = std::getenv("XDG_CONFIG_HOME");
     std::filesystem::path base = (xdg && *xdg)
@@ -23,6 +25,13 @@ static void apply_env(Config& cfg) {
         cfg.target_lang = v;
     if (const char* v = std::getenv("PT_LOG_LEVEL"))
         cfg.log_level = v;
+    if (const char* v = std::getenv("PT_PARALLELISM")) {
+        try {
+            cfg.parallelism = std::stoi(v);
+        } catch (...) {
+            spdlog::warn("PT_PARALLELISM='{}' is not a valid integer, using default", v);
+        }
+    }
 }
 
 Config load_config() {
@@ -42,6 +51,8 @@ Config load_config() {
             cfg.target_lang = *v;
         if (auto v = tbl["log"]["level"].value<std::string>())
             cfg.log_level = *v;
+        if (auto v = tbl["translation"]["parallelism"].value<int>())
+            cfg.parallelism = *v;
     }
 
     apply_env(cfg);
