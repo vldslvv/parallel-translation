@@ -52,8 +52,8 @@ conanbuild.bat
 conanrun.sh
 conanrun.bat
 
-# Texts to translate
-texts/
-
 # Claude
 .claude/
+
+# Texts to translate
+texts/
