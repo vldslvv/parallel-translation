@@ -43,5 +43,17 @@
 # CMake out-of-source build directory
 build/
 
+# Conan generated files
+conan_toolchain.cmake
+conan_provider.cmake
+CMakeUserPresets.json
+conanbuild.sh
+conanbuild.bat
+conanrun.sh
+conanrun.bat
+
 # Texts to translate
 texts/
+
+# Claude
+.claude/
