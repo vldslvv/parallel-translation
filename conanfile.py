@@ -12,7 +12,6 @@ class ParallelTranslation(ConanFile):
         self.requires("nlohmann_json/3.11.3")
         self.requires("tomlplusplus/3.4.0")
         self.requires("spdlog/1.15.1")
-        self.requires("podofo/0.10.5")
 
     def layout(self):
         cmake_layout(self)

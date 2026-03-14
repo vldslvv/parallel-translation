@@ -16,7 +16,6 @@ find_package(httplib REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(tomlplusplus REQUIRED)
 find_package(spdlog REQUIRED)
-find_package(podofo REQUIRED)
 
 add_executable(parallel-translation
     src/main.cpp
@@ -37,7 +36,6 @@ target_include_directories(parallel-translation PRIVATE src)
 target_link_libraries(parallel-translation PRIVATE
     CLI11::CLI11 httplib::httplib nlohmann_json::nlohmann_json
     tomlplusplus::tomlplusplus spdlog::spdlog
-    podofo::podofo
 )
 
 target_compile_options(parallel-translation PRIVATE

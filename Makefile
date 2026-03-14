@@ -1,10 +1,5 @@
 BUILD_DIR     := build
 
-# PoDoFo 0.10.x creates its own OpenSSL library context (OSSL_LIB_CTX_new)
-# which does not inherit system-wide openssl.cnf provider settings.
-# OPENSSL_MODULES tells the custom context where to find provider modules
-# (e.g. legacy.so for RC4 support required by PDF encryption).
-export OPENSSL_MODULES := /usr/lib64/ossl-modules
 DEBUG_DIR     := $(BUILD_DIR)/Debug
 RELEASE_DIR   := $(BUILD_DIR)/Release
 PREFIX        := $(HOME)/.local

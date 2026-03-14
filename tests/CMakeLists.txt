@@ -1,16 +1,9 @@
-# PoDoFo 0.10.x creates its own OpenSSL library context (OSSL_LIB_CTX_new)
-# which does not inherit system-wide openssl.cnf provider settings.
-# OPENSSL_MODULES tells the custom context where to find provider modules
-# (e.g. legacy.so for RC4 support required by PDF encryption).
-set(OPENSSL_MODULES_ENV "OPENSSL_MODULES=/usr/lib64/ossl-modules")
-
 add_test(
     NAME help_flag_exits_successfully
     COMMAND parallel-translation --help
 )
 set_tests_properties(help_flag_exits_successfully PROPERTIES
     PASS_REGULAR_EXPRESSION "Usage:"
-    ENVIRONMENT "${OPENSSL_MODULES_ENV}"
 )
 
 include(Catch)
