@@ -1,5 +1,3 @@
-.PHONY: all build release clean run test format tidy install uninstall help
-
 BUILD_DIR     := build
 
 # PoDoFo 0.10.x creates its own OpenSSL library context (OSSL_LIB_CTX_new)
@@ -15,46 +13,62 @@ CONAN_PROFILE := $(HOME)/.conan2/profiles/default
 $(CONAN_PROFILE):
 	conan profile detect
 
+.PHONY: all
 all: build
 
+.PHONY: build
 build: $(CONAN_PROFILE)
 	conan install . --build=missing -s build_type=Debug
 	cmake -B $(DEBUG_DIR) -DCMAKE_TOOLCHAIN_FILE=$(DEBUG_DIR)/generators/conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Debug
 	cmake --build $(DEBUG_DIR)
 
+.PHONY: release
 release: $(CONAN_PROFILE)
 	conan install . --build=missing -s build_type=Release
 	cmake -B $(RELEASE_DIR) -DCMAKE_TOOLCHAIN_FILE=$(RELEASE_DIR)/generators/conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
 	cmake --build $(RELEASE_DIR)
 
+.PHONY: install
 install: release
 	cmake --install $(RELEASE_DIR) --prefix $(PREFIX)
 
+.PHONY: uninstall
 uninstall:
 	xargs rm -f < $(RELEASE_DIR)/install_manifest.txt
 
+.PHONY: format
 format:
 	find src tests -name '*.cpp' -o -name '*.hpp' | xargs clang-format -i
 
+.PHONY: tidy
 tidy:
 	run-clang-tidy -p $(DEBUG_DIR) src/ tests/
 
+.PHONY: clean
 clean:
 	rm -rf $(BUILD_DIR)
 
-run: build
+.PHONY: run
+run: release
+	./$(RELEASE_DIR)/parallel-translation $(ARGS)
+
+.PHONY: run-debug
+run-debug: build
 	./$(DEBUG_DIR)/parallel-translation $(ARGS)
 
+.PHONY: test
 test: build
 	ctest --test-dir $(DEBUG_DIR) --output-on-failure
 
+.PHONY: help
 help:
 	@echo "Usage: make [target] [ARGS=\"...\"]"
 	@echo ""
 	@echo "Targets:"
 	@echo "  build          Debug build (default)"
 	@echo "  release        Optimized release build"
-	@echo "  run            Build and run the binary"
+	@echo "  run            Build and run the binary (release)"
+	@echo "  run-debug      Build and run the binary (debug)"
 	@echo "  test           Build and run tests"
 	@echo "  install        Build (release) and install to system (may need sudo)"
 	@echo "  uninstall      Remove installed files"
