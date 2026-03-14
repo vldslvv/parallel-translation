@@ -4,13 +4,14 @@ repos:
       - id: clang-format
         name: clang-format
         language: system
-        entry: clang-format --dry-run --Werror
+        entry: clang-format --Werror
         types_or: [c++, c]
         exclude: ^build/
 
       - id: clang-tidy
         name: clang-tidy
         language: system
-        entry: clang-tidy -p build/Debug
+        entry: run-clang-tidy -p build/Debug src/ tests/
         types_or: [c++, c]
         exclude: ^build/
+        pass_filenames: false

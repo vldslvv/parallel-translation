@@ -37,7 +37,7 @@ format:
 	find src tests -name '*.cpp' -o -name '*.hpp' | xargs clang-format -i
 
 tidy:
-	run-clang-tidy -p $(DEBUG_DIR) 'src/|tests/'
+	run-clang-tidy -p $(DEBUG_DIR) src/ tests/
 
 clean:
 	rm -rf $(BUILD_DIR)
