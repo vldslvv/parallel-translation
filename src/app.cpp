@@ -130,13 +130,13 @@ int run(int argc, char* argv[]) {
     Reader read = txt_reader;
     Formatter format = plain_formatter;
     Translator translate;
-    if (backend == "stub")
+    if (backend == "stub") {
         translate = stub_translator;
-    else if (backend == "pass")
+    } else if (backend == "pass") {
         translate = pass_translator;
-    else if (backend == "ollama")
+    } else if (backend == "ollama") {
         translate = make_ollama_translator(cfg.ollama_model, cfg.ollama_host);
-    else {
+    } else {
         spdlog::error("unknown backend: {}", backend);
         return exit_code::usage_error;
     }

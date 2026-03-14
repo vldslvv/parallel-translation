@@ -6,7 +6,7 @@
 
 #include <spdlog/spdlog.h>
 
-Translator make_ollama_translator(std::string model, std::string host) {
+Translator make_ollama_translator(std::string model, const std::string& host) {
     return [model, host](std::string_view text) -> std::string {
         spdlog::debug("ollama request: host={} model={} input_bytes={}", host, model, text.size());
         httplib::Client client{host};

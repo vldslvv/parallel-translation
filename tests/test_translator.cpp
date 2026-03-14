@@ -24,8 +24,14 @@ TEST_CASE("translates input file to output file", "[integration]") {
 }
 
 TEST_CASE("errors on non-existent input file", "[integration]") {
-    const char* argv[] = {"app", "--backend", "stub", "-i", ASSETS_DIR "/nonexistent.txt",
-                          "-o",  OUTPUT};
+    const char* argv[] = {"app",
+                          "--backend",
+                          "stub",
+                          "-i",
+                          ASSETS_DIR // NOLINT(bugprone-suspicious-missing-comma)
+                          "/nonexistent.txt",
+                          "-o",
+                          OUTPUT};
 
     CHECK(run(std::size(argv), const_cast<char**>(argv)) == exit_code::input_error);
 }

@@ -1,4 +1,4 @@
-.PHONY: all build release clean run test format install uninstall help
+.PHONY: all build release clean run test format tidy install uninstall help
 
 BUILD_DIR     := build
 
@@ -36,6 +36,9 @@ uninstall:
 format:
 	find src tests -name '*.cpp' -o -name '*.hpp' | xargs clang-format -i
 
+tidy:
+	run-clang-tidy -p $(DEBUG_DIR) 'src/|tests/'
+
 clean:
 	rm -rf $(BUILD_DIR)
 
@@ -56,6 +59,7 @@ help:
 	@echo "  install        Build (release) and install to system (may need sudo)"
 	@echo "  uninstall      Remove installed files"
 	@echo "  format         Auto-format source files with clang-format"
+	@echo "  tidy           Run clang-tidy static analysis on src/ and tests/"
 	@echo "  clean          Remove the build directory"
 	@echo "  help           Show this help message"
 	@echo ""

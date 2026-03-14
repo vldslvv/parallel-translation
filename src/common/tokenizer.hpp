@@ -1,8 +1,9 @@
 #pragma once
+#include <cstdint>
 #include <string_view>
 #include <vector>
 
-enum class TokenKind { Word, Separator };
+enum class TokenKind : std::uint8_t { Word, Separator };
 
 struct Token {
     std::string_view text;

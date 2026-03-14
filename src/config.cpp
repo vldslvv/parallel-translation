@@ -8,7 +8,7 @@
 
 static std::filesystem::path config_file_path() {
     const char* xdg = std::getenv("XDG_CONFIG_HOME");
-    std::filesystem::path base = (xdg && *xdg)
+    std::filesystem::path base = (xdg != nullptr && *xdg != '\0')
                                      ? std::filesystem::path{xdg}
                                      : std::filesystem::path{std::getenv("HOME")} / ".config";
     return base / "parallel-translation" / "config.toml";

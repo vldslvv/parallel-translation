@@ -7,3 +7,10 @@ repos:
         entry: clang-format --dry-run --Werror
         types_or: [c++, c]
         exclude: ^build/
+
+      - id: clang-tidy
+        name: clang-tidy
+        language: system
+        entry: clang-tidy -p build/Debug
+        types_or: [c++, c]
+        exclude: ^build/
