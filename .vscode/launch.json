@@ -1,0 +1,41 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Tests (vscode)",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Debug/tests/test_integration",
+            "args": [],
+            "cwd": "${workspaceFolder}/tests",
+            "preLaunchTask": "make build (debug)",
+        },
+        {
+            "name": "Debug Tests (neovim)",
+            "type": "codelldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Debug/tests/test_integration",
+            "args": [],
+            "cwd": "${workspaceFolder}/tests",
+            "preLaunchTask": "make build (debug)",
+        },
+        {
+            "name": "Debug (vscode)",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Debug/parallel-translation",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "make build (debug)",
+        },
+        {
+            "name": "Debug (neovim)",
+            "type": "codelldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Debug/parallel-translation",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "make build (debug)",
+        }
+    ]
+}
