@@ -16,6 +16,8 @@ find_package(httplib REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(tomlplusplus REQUIRED)
 find_package(spdlog REQUIRED)
+find_package(libharu REQUIRED)
+find_package(poppler REQUIRED)
 
 add_executable(parallel-translation
     src/main.cpp
@@ -35,7 +37,8 @@ install(TARGETS parallel-translation RUNTIME DESTINATION bin)
 target_include_directories(parallel-translation PRIVATE src)
 target_link_libraries(parallel-translation PRIVATE
     CLI11::CLI11 httplib::httplib nlohmann_json::nlohmann_json
-    tomlplusplus::tomlplusplus spdlog::spdlog
+    tomlplusplus::tomlplusplus spdlog::spdlog libharu::libharu
+    poppler::poppler
 )
 
 target_compile_options(parallel-translation PRIVATE
