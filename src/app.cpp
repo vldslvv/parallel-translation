@@ -44,8 +44,7 @@ static std::expected<Reader, int> get_reader(std::string& input_file) {
         return txt_reader;
     }
     if (extension == ".pdf") {
-        spdlog::error("Not supported file type: {}", extension);
-        return std::unexpected(exit_code::usage_error);
+        return pdf_reader;
     }
 
     spdlog::error("unsupported extension: {}", extension);

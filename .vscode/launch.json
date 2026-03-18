@@ -24,7 +24,7 @@
             "type": "lldb",
             "request": "launch",
             "program": "${workspaceFolder}/build/Debug/parallel-translation",
-            "args": ["--input", "./tests/assets/latin_example.txt", "--output", "./texts/english/latin_example.txt", "--backend", "ollama", "--ollama-model", "gemma3:27b"],
+            "args": ["--input", "./texts/latin/de_magia.pdf", "--output", "./texts/english/latin_example.txt", "--backend", "ollama", "--ollama-model", "gemma3:27b"],
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "make build (debug)",
         },
@@ -33,7 +33,7 @@
             "type": "codelldb",
             "request": "launch",
             "program": "${workspaceFolder}/build/Debug/parallel-translation",
-            "args": ["--input", "./tests/assets/latin_example.txt", "--output", "./texts/english/latin_example.txt", "--backend", "ollama", "--ollama-model", "gemma3:27b"],
+            "args": ["--input", "./texts/latin/de_magia.pdf", "--output", "./texts/english/latin_example.txt", "--backend", "ollama", "--ollama-model", "gemma3:27b"],
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "make build (debug)",
         }

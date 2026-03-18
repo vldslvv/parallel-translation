@@ -26,7 +26,9 @@ add_executable(parallel-translation
     src/translators/stub.cpp
     src/translators/pass.cpp
     src/translators/ollama.cpp
+    src/readers/sentence_splitter.cpp
     src/readers/txt.cpp
+    src/readers/pdf.cpp
     src/writers/txt.cpp
     src/writers/formatted_writer.cpp
     src/formatters/plain.cpp
@@ -45,6 +47,10 @@ target_compile_options(parallel-translation PRIVATE
     -Wall
     -Wextra
     -Wpedantic
+    # /home/vv is a symlink to /mnt/shared_linux/home_shared, causing the compiler
+    # to embed symlink paths in debug info that the debugger can't resolve.
+    # This rewrites them to the real path at compile time.
+    $<$<CONFIG:Debug>:-fdebug-prefix-map=/home/vv=/mnt/shared_linux/home_shared>
 )
 
 enable_testing()

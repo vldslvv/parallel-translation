@@ -1,6 +1,6 @@
-- Add clang-tidy, make sure it doesn't scan build dir.
 - Be able to calculate coverage
-- PDF support, in and out
-- Add line numbers
+- Add line numbers to translations, make it an option.
 - Don't translate question marks inside translator -- give warning and do nothing
+- Tests for pdf reader
+- Detection for headers/footers, or options set margins for pdf
 

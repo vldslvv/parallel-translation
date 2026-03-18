@@ -18,7 +18,9 @@ add_executable(test_integration
     ../src/translators/stub.cpp
     ../src/translators/pass.cpp
     ../src/translators/ollama.cpp
+    ../src/readers/sentence_splitter.cpp
     ../src/readers/txt.cpp
+    ../src/readers/pdf.cpp
     ../src/writers/txt.cpp
     ../src/writers/formatted_writer.cpp
     ../src/formatters/plain.cpp
@@ -31,6 +33,14 @@ target_link_libraries(test_integration PRIVATE
     nlohmann_json::nlohmann_json
     tomlplusplus::tomlplusplus
     spdlog::spdlog
+    poppler::poppler
+    libharu::libharu
+)
+target_compile_options(test_integration PRIVATE
+    # /home/vv is a symlink to /mnt/shared_linux/home_shared, causing the compiler
+    # to embed symlink paths in debug info that the debugger can't resolve.
+    # This rewrites them to the real path at compile time.
+    $<$<CONFIG:Debug>:-fdebug-prefix-map=/home/vv=/mnt/shared_linux/home_shared>
 )
 target_compile_definitions(test_integration PRIVATE ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")
 catch_discover_tests(test_integration)
