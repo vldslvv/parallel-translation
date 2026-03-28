@@ -12,7 +12,8 @@ class ParallelTranslation(ConanFile):
         self.requires("nlohmann_json/3.11.3")
         self.requires("tomlplusplus/3.4.0")
         self.requires("spdlog/1.15.1")
-        self.requires("libharu/2.4.4")
+        self.requires("pdf-writer/4.6.7")
+        self.requires("freetype/2.13.2")
         self.requires("poppler/25.11.0")
 
     def layout(self):

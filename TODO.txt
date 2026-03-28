@@ -3,4 +3,5 @@
 - Don't translate question marks inside translator -- give warning and do nothing
 - Tests for pdf reader
 - Detection for headers/footers, or options set margins for pdf
+- pause/resume
 

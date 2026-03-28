@@ -6,6 +6,7 @@
 #include <expected>
 #include <filesystem>
 #include <future>
+#include <optional>
 #include <semaphore>
 #include <string>
 
@@ -20,6 +21,7 @@
 #include "translators/ollama.hpp"
 #include "translators/translator.hpp"
 #include "writers/formatted_writer.hpp"
+#include "writers/pdf.hpp"
 #include "writers/writer.hpp"
 
 static std::expected<Translator, int> get_translator(const std::string& backend,
@@ -51,28 +53,9 @@ static std::expected<Reader, int> get_reader(std::string& input_file) {
     return std::unexpected(exit_code::usage_error);
 }
 
-static std::expected<std::pair<Writer, Formatter>, int>
-get_writer_formatter(std::string& output_file) {
-    std::string extension = std::filesystem::path{output_file}.extension();
-    if (extension == ".txt") {
-        return std::make_pair(txt_writer, plain_formatter);
-    }
-    if (extension == ".pdf") {
-        spdlog::error("Not supported file type: {}", extension);
-        return std::unexpected(exit_code::usage_error);
-    }
-
-    spdlog::error("unsupported extension: {}", extension);
-    return std::unexpected(exit_code::usage_error);
-}
-
-struct TranslationPaths {
-    std::string_view input;
-    std::string_view output;
-};
-
-static int translate_file(const Reader& read, const Translator& translate, const Writer& write,
-                          const Formatter& format, TranslationPaths paths, int parallelism) {
+static int translate_file(const Reader& read, const Translator& translate,
+                          FormattedWriter& formatted_write,
+                          std::string_view input, int parallelism) {
     constexpr int sem_max = 64;
     if (parallelism > sem_max) {
         spdlog::error("parallelism {} exceeds maximum {}", parallelism, sem_max);
@@ -80,13 +63,6 @@ static int translate_file(const Reader& read, const Translator& translate, const
     }
     std::counting_semaphore<sem_max> sem{parallelism};
     std::deque<std::pair<std::string, std::future<std::string>>> work;
-
-    auto writer = write(paths.output);
-    if (!writer.is_open()) {
-        spdlog::error("cannot open output file: {}", paths.output);
-        return exit_code::output_error;
-    }
-    FormattedWriter formatted_write = make_formatted_writer(writer, format);
 
     auto flush = [&work, &formatted_write]() -> int {
         while (!work.empty()) {
@@ -109,7 +85,7 @@ static int translate_file(const Reader& read, const Translator& translate, const
     };
 
     // Dispatch: one async task per sentence, limited by semaphore
-    for (const auto& item : read(paths.input)) {
+    for (const auto& item : read(input)) {
         if (!item) {
             spdlog::error("{}", item.error());
             return exit_code::input_error;
@@ -193,12 +169,29 @@ int run(int argc, char* argv[]) {
     if (!translator) {
         return translator.error();
     }
-    auto writer_formatter = get_writer_formatter(output);
-    if (!writer_formatter) {
-        return writer_formatter.error();
-    }
-    auto [writer, formatter] = std::move(writer_formatter).value();
+    std::string ext = std::filesystem::path{output}.extension();
+    std::optional<StreamWriter> txt_sw;
+    std::optional<PdfWriter> pdf_pw;
+    FormattedWriter formatted_write;
 
-    return translate_file(std::move(reader).value(), std::move(translator).value(), writer,
-                          formatter, {.input = input, .output = output}, parallelism);
+    if (ext == ".txt") {
+        txt_sw.emplace(txt_writer(output));
+        if (!txt_sw->is_open()) {
+            spdlog::error("cannot open output file: {}", output);
+            return exit_code::output_error;
+        }
+        formatted_write = make_formatted_writer(*txt_sw, plain_formatter);
+    } else if (ext == ".pdf") {
+        pdf_pw.emplace(output);
+        if (!pdf_pw->is_open()) {
+            spdlog::error("cannot open output file: {}", output);
+            return exit_code::output_error;
+        }
+        formatted_write = make_pdf_formatted_writer(*pdf_pw);
+    } else {
+        spdlog::error("unsupported output extension: {}", ext);
+        return exit_code::usage_error;
+    }
+
+    return translate_file(*reader, *translator, formatted_write, input, parallelism);
 }

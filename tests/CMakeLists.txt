@@ -13,6 +13,7 @@ add_executable(test_integration
     test_translator.cpp
     test_tokenizer.cpp
     test_reader.cpp
+    test_pdf_writer.cpp
     ../src/app.cpp
     ../src/config.cpp
     ../src/translators/stub.cpp
@@ -22,10 +23,14 @@ add_executable(test_integration
     ../src/readers/txt.cpp
     ../src/readers/pdf.cpp
     ../src/writers/txt.cpp
+    ../src/writers/pdf.cpp
     ../src/writers/formatted_writer.cpp
     ../src/formatters/plain.cpp
 )
-target_include_directories(test_integration PRIVATE ${CMAKE_SOURCE_DIR}/src)
+# FREETYPE_INCLUDE_DIR is resolved in the root CMakeLists via find_path.
+# See that file for the full explanation of why the include path must be set
+# explicitly rather than relying on the Freetype::Freetype target.
+target_include_directories(test_integration PRIVATE ${CMAKE_SOURCE_DIR}/src "${FREETYPE_INCLUDE_DIR}")
 target_link_libraries(test_integration PRIVATE
     Catch2::Catch2WithMain
     CLI11::CLI11
@@ -34,7 +39,8 @@ target_link_libraries(test_integration PRIVATE
     tomlplusplus::tomlplusplus
     spdlog::spdlog
     poppler::poppler
-    libharu::libharu
+    PDFHummus::PDFWriter
+    Freetype::Freetype
 )
 target_compile_options(test_integration PRIVATE
     # /home/vv is a symlink to /mnt/shared_linux/home_shared, causing the compiler

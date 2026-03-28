@@ -16,7 +16,7 @@ find_package(httplib REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(tomlplusplus REQUIRED)
 find_package(spdlog REQUIRED)
-find_package(libharu REQUIRED)
+find_package(PDFHummus REQUIRED)
 find_package(poppler REQUIRED)
 
 add_executable(parallel-translation
@@ -30,17 +30,32 @@ add_executable(parallel-translation
     src/readers/txt.cpp
     src/readers/pdf.cpp
     src/writers/txt.cpp
+    src/writers/pdf.cpp
     src/writers/formatted_writer.cpp
     src/formatters/plain.cpp
 )
 
 install(TARGETS parallel-translation RUNTIME DESTINATION bin)
 
-target_include_directories(parallel-translation PRIVATE src)
+# freetype is an explicit Conan dependency (conan.io/center/recipes/freetype).
+# Its Conan recipe intentionally omits INTERFACE_INCLUDE_DIRECTORIES from the
+# generated Freetype::Freetype target (it treats FreeType as a system library),
+# so linking against it alone does not add the headers to the include path.
+# The Conan toolchain populates CMAKE_INCLUDE_PATH with the package's own
+# include dirs, so find_path resolves ft2build.h from the Conan-managed
+# package — no system path is assumed.
+find_path(FREETYPE_INCLUDE_DIR NAMES ft2build.h)
+if(NOT FREETYPE_INCLUDE_DIR)
+    message(FATAL_ERROR "Cannot find ft2build.h — is freetype installed via Conan?")
+endif()
+target_include_directories(parallel-translation PRIVATE src "${FREETYPE_INCLUDE_DIR}")
+# Freetype::Freetype is listed explicitly for the same reason: to ensure the
+# linker resolves FreeType symbols that PDFHummus uses without relying solely
+# on transitive linkage.
 target_link_libraries(parallel-translation PRIVATE
     CLI11::CLI11 httplib::httplib nlohmann_json::nlohmann_json
-    tomlplusplus::tomlplusplus spdlog::spdlog libharu::libharu
-    poppler::poppler
+    tomlplusplus::tomlplusplus spdlog::spdlog PDFHummus::PDFWriter
+    Freetype::Freetype poppler::poppler
 )
 
 target_compile_options(parallel-translation PRIVATE
