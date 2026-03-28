@@ -55,12 +55,12 @@ struct PdfWriter::Impl {
     double cursor_y = 0;
     bool open = false;
 
-    static constexpr double kPageWidth  = 595.0;  // A4
+    static constexpr double kPageWidth = 595.0; // A4
     static constexpr double kPageHeight = 842.0;
-    static constexpr double kMargin     = 50.0;
-    static constexpr double kFontSize   = 10.0;
+    static constexpr double kMargin = 50.0;
+    static constexpr double kFontSize = 10.0;
     static constexpr double kLineHeight = 14.0;
-    static constexpr double kPairGap    = 8.0;
+    static constexpr double kPairGap = 8.0;
 
     int flush_page() {
         if (ctx == nullptr)
@@ -95,7 +95,8 @@ struct PdfWriter::Impl {
     }
 
     // Writes a single physical line of text, paginating if needed.
-    int write_physical_line(const std::string& line, const AbstractContentContext::TextOptions& opts) {
+    int write_physical_line(const std::string& line,
+                            const AbstractContentContext::TextOptions& opts) {
         if (cursor_y < kMargin + kLineHeight) {
             if (auto rc = flush_page(); rc != 0)
                 return rc;
@@ -191,8 +192,7 @@ PdfWriter::PdfWriter(std::string_view path) : impl_(std::make_unique<Impl>()) {
 
     // Open the first page
     impl_->current_page = new PDFPage();
-    impl_->current_page->SetMediaBox(
-        PDFRectangle(0, 0, Impl::kPageWidth, Impl::kPageHeight));
+    impl_->current_page->SetMediaBox(PDFRectangle(0, 0, Impl::kPageWidth, Impl::kPageHeight));
     impl_->ctx = impl_->pdf.StartPageContentContext(impl_->current_page);
     if (impl_->ctx == nullptr) {
         spdlog::error("cannot start first page content context");
@@ -219,23 +219,19 @@ PdfWriter& PdfWriter::operator=(PdfWriter&&) noexcept = default;
 
 bool PdfWriter::is_open() const { return impl_ && impl_->open; }
 
-int PdfWriter::start_new_page() {
-    return impl_->start_new_page();
-}
+int PdfWriter::start_new_page() { return impl_->start_new_page(); }
 
-int PdfWriter::flush_page() {
-    return impl_->flush_page();
-}
+int PdfWriter::flush_page() { return impl_->flush_page(); }
 
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 int PdfWriter::write_pair(std::string_view original, std::string_view translation) {
     if (!is_open())
         return exit_code::output_error;
 
-    AbstractContentContext::TextOptions regular_opts(
-        impl_->font, Impl::kFontSize, AbstractContentContext::eGray, 0);
-    AbstractContentContext::TextOptions italic_opts(
-        impl_->italic_font, Impl::kFontSize, AbstractContentContext::eGray, 0);
+    AbstractContentContext::TextOptions regular_opts(impl_->font, Impl::kFontSize,
+                                                     AbstractContentContext::eGray, 0);
+    AbstractContentContext::TextOptions italic_opts(impl_->italic_font, Impl::kFontSize,
+                                                    AbstractContentContext::eGray, 0);
 
     if (auto rc = impl_->write_line(original, impl_->font, regular_opts); rc != 0)
         return rc;

@@ -1,7 +1,8 @@
 #include "sentence_splitter.hpp"
 #include <spdlog/spdlog.h>
 
-std::generator<std::string> split_sentences(std::generator<std::string> chunks) { // NOLINT(readability-function-cognitive-complexity)
+std::generator<std::string> split_sentences(
+    std::generator<std::string> chunks) { // NOLINT(readability-function-cognitive-complexity)
     std::string sentence;
     bool prev_was_newline = false;
 
@@ -12,7 +13,8 @@ std::generator<std::string> split_sentences(std::generator<std::string> chunks) 
                     while (!sentence.empty() && sentence.back() == ' ')
                         sentence.pop_back();
                     if (!sentence.empty()) {
-                        spdlog::debug("yielding sentence ({} bytes)\n{}", sentence.size(), sentence);
+                        spdlog::debug("yielding sentence ({} bytes)\n{}", sentence.size(),
+                                      sentence);
                         co_yield sentence;
                         sentence.clear();
                     }

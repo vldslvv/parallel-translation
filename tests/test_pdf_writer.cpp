@@ -1,7 +1,7 @@
+#include "writers/pdf.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <cstdio>
 #include <filesystem>
-#include "writers/pdf.hpp"
 
 TEST_CASE("pdf writer creates a file", "[pdf]") {
     const std::string out = std::string(ASSETS_DIR) + "/test_output.pdf";
