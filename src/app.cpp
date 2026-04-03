@@ -33,7 +33,7 @@ static std::expected<Translator, int> get_translator(const std::string& backend,
         return pass_translator;
     }
     if (backend == "ollama") {
-        return make_ollama_translator(cfg.ollama_model, cfg.ollama_host);
+        return make_ollama_latin_to_english_translator(cfg.ollama_model, cfg.ollama_host);
     }
 
     spdlog::error("unknown backend: {}", backend);
@@ -54,7 +54,7 @@ static std::expected<Reader, int> get_reader(std::string& input_file) {
 }
 
 static int translate_file(const Reader& read, const Translator& translate,
-                          FormattedWriter& formatted_write,
+                          const Translator& read_postprocess, FormattedWriter& formatted_write,
                           std::string_view input, int parallelism) {
     constexpr int sem_max = 64;
     if (parallelism > sem_max) {
@@ -64,7 +64,7 @@ static int translate_file(const Reader& read, const Translator& translate,
     std::counting_semaphore<sem_max> sem{parallelism};
     std::deque<std::pair<std::string, std::future<std::string>>> work;
 
-    auto flush = [&work, &formatted_write]() -> int {
+    auto flush = [&work, &formatted_write, &read_postprocess]() -> int {
         while (!work.empty()) {
             auto& [original, fut] = work.front();
             if (fut.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
@@ -77,7 +77,14 @@ static int translate_file(const Reader& read, const Translator& translate,
                 spdlog::error("translation failed: {}", e.what());
                 return exit_code::runtime_error;
             }
-            if (auto rc = formatted_write(original, translation); rc != 0)
+            // Postprocessed original is useful when Latin text doesn't have
+            // macrons, and user wants to insert them. Since it's likely
+            // that LLMs are used, a postprocessed original should not be translated
+            // to not introduce more noise into the input
+            auto original_postprocessed = read_postprocess(original);
+            spdlog::debug("postprocessed: {}", original_postprocessed);
+
+            if (auto rc = formatted_write(original_postprocessed, translation); rc != 0)
                 return rc;
             work.pop_front();
         }
@@ -114,7 +121,11 @@ static int translate_file(const Reader& read, const Translator& translate,
             spdlog::error("translation failed: {}", e.what());
             return exit_code::runtime_error;
         }
-        if (auto rc = formatted_write(original, translation); rc != 0)
+
+        auto original_postprocessed = read_postprocess(original);
+        spdlog::debug("postprocessed: {}", original_postprocessed);
+
+        if (auto rc = formatted_write(original_postprocessed, translation); rc != 0)
             return rc;
     }
     return 0;
@@ -174,6 +185,10 @@ int run(int argc, char* argv[]) {
     std::optional<PdfWriter> pdf_pw;
     FormattedWriter formatted_write;
 
+    auto postprocessor = (backend == "ollama")
+                             ? make_ollama_macron_translator(cfg.ollama_model, cfg.ollama_host)
+                             : pass_translator;
+
     if (ext == ".txt") {
         txt_sw.emplace(txt_writer(output));
         if (!txt_sw->is_open()) {
@@ -193,5 +208,5 @@ int run(int argc, char* argv[]) {
         return exit_code::usage_error;
     }
 
-    return translate_file(*reader, *translator, formatted_write, input, parallelism);
+    return translate_file(*reader, *translator, postprocessor, formatted_write, input, parallelism);
 }
