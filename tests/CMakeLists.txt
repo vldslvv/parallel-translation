@@ -16,6 +16,7 @@ add_executable(test_integration
     test_pdf_writer.cpp
     test_text.cpp
     ../src/app.cpp
+    ../src/common/process.cpp
     ../src/text/text.cpp
     ../src/config.cpp
     ../src/translators/stub.cpp

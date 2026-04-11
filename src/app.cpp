@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstddef>
+#include <cstdlib>
 #include <deque>
 #include <expected>
 #include <filesystem>
@@ -17,6 +18,7 @@
 #include "common/scope_exit.hpp"
 #include "config.hpp"
 #include "formatters/formatter.hpp"
+#include "common/process.hpp"
 #include "readers/reader.hpp"
 #include "translators/ollama.hpp"
 #include "translators/translator.hpp"
@@ -131,7 +133,33 @@ static int translate_file(const Reader& read, const Translator& translate,
     return 0;
 }
 
+// TODO: run this command:
+// echo "firmamentum" | PATH="$HOME/ccode/morpheus/src/gkends:$HOME/ccode/morpheus/src/gkdict:$HOME/ccode/morpheus/src/gener:$HOME/ccode/morpheus/src/anal:$PATH" MORPHLIB="$HOME/ccode/morpheus/stemlib" ~/ccode/morpheus/bin/cruncher -L
 int run(int argc, char* argv[]) {
+    const char* home_env = std::getenv("HOME");
+    const char* path_env = std::getenv("PATH");
+    std::string home = home_env ? home_env : "";
+    std::string path = path_env ? path_env : "";
+
+    std::string cruncher_path = home + "/ccode/morpheus/bin/cruncher";
+    std::string morpheus_path =
+        home + "/ccode/morpheus/src/gkends:" +
+        home + "/ccode/morpheus/src/gkdict:" +
+        home + "/ccode/morpheus/src/gener:" +
+        home + "/ccode/morpheus/src/anal:" +
+        path;
+    std::string morphlib_path = home + "/ccode/morpheus/stemlib";
+    std::vector<std::pair<std::string, std::string>> env_vars = {
+        { "PATH", morpheus_path },
+        { "MORPHLIB", morphlib_path }
+    };
+    std::vector<std::string> args = { "-L" };
+
+    auto out = run_process(cruncher_path, "firmamentum", env_vars, args);
+    std::cout << "Exit: " << out.exit_code << '\n';
+    std::cout << out.output << '\n';
+    std::cout << "Done" << '\n';
+    exit(0);
     Config cfg = load_config();
 
     CLI::App app{"parallel-translation"};

@@ -23,6 +23,7 @@ add_executable(parallel-translation
     src/main.cpp
     src/app.cpp
     src/config.cpp
+    src/common/process.cpp
     src/translators/stub.cpp
     src/translators/pass.cpp
     src/translators/ollama.cpp

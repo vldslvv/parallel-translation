@@ -15,7 +15,8 @@ const std::string translate_latin_to_english_prompt =
     "- Do not add interpretive notes, alternative readings, or parenthetical remarks.";
 
 const std::string add_macrons_to_latin_prompt =
-    "You add macrons to Latin vowels (a\u2192\u0101, e\u2192\u0113, i\u2192\u012b, o\u2192\u014d, u\u2192\u016b).\n"
+    "You add macrons to Latin vowels (a\u2192\u0101, e\u2192\u0113, i\u2192\u012b, o\u2192\u014d, "
+    "u\u2192\u016b).\n"
     "Rules:\n"
     "- Preserve every word, punctuation mark, and whitespace exactly as given.\n"
     "- Do not add, remove, reorder, or alter any word.\n"
@@ -38,7 +39,8 @@ Translator make_ollama_translator(const std::string& model, const std::string& h
                                     {{"role", "user"}, {"content", std::string{text}}}})},
             {"stream", false}};
 
-        spdlog::debug("ollama: POST /api/chat model={} text_len={}\n  request: {}", model, text.size(), std::string{text});
+        spdlog::debug("ollama: POST /api/chat model={} text_len={}\n  request: {}", model,
+                      text.size(), std::string{text});
         auto res = client.Post("/api/chat", body.dump(), "application/json");
 
         if (!res)
@@ -87,14 +89,16 @@ Translator make_ollama_macron_translator(const std::string& model, const std::st
                                      "original_words and split_words");
         }
         if (original_split.separators.size() != translated_split.separators.size()) {
-            spdlog::warn("ollama macron: separator count mismatch\n  original:   {}\n  translated: {}",
-                         std::string{original}, translation);
+            spdlog::warn(
+                "ollama macron: separator count mismatch\n  original:   {}\n  translated: {}",
+                std::string{original}, translation);
             throw std::runtime_error("When splitting words, found mismatch between separator count "
                                      "of original_words and split_words");
         }
         for (size_t i = 0; i < original_split.words.size(); i++) {
             if (!compare_words(original_split.words[i], translated_split.words[i])) {
-                spdlog::warn("ollama macron: word mismatch at index {}: '{}' -> '{}'\n  original:   {}\n  translated: {}",
+                spdlog::warn("ollama macron: word mismatch at index {}: '{}' -> '{}'\n  original:  "
+                             " {}\n  translated: {}",
                              i, original_split.words[i], translated_split.words[i],
                              std::string{original}, translation);
                 translated_split.words[i] += "[" + original_split.words[i] + "]";
