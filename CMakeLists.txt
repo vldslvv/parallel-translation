@@ -26,6 +26,7 @@ add_executable(parallel-translation
     src/common/process.cpp
     src/translators/stub.cpp
     src/translators/pass.cpp
+    src/translators/morpheus.cpp
     src/translators/ollama.cpp
     src/text/text.cpp
     src/readers/sentence_splitter.cpp

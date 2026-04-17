@@ -1,8 +1,7 @@
 #include "app.hpp"
 
 #include <chrono>
-#include <cstddef>
-#include <cstdlib>
+
 #include <deque>
 #include <expected>
 #include <filesystem>
@@ -18,8 +17,8 @@
 #include "common/scope_exit.hpp"
 #include "config.hpp"
 #include "formatters/formatter.hpp"
-#include "common/process.hpp"
 #include "readers/reader.hpp"
+#include "translators/morpheus.hpp"
 #include "translators/ollama.hpp"
 #include "translators/translator.hpp"
 #include "writers/formatted_writer.hpp"
@@ -133,33 +132,7 @@ static int translate_file(const Reader& read, const Translator& translate,
     return 0;
 }
 
-// TODO: run this command:
-// echo "firmamentum" | PATH="$HOME/ccode/morpheus/src/gkends:$HOME/ccode/morpheus/src/gkdict:$HOME/ccode/morpheus/src/gener:$HOME/ccode/morpheus/src/anal:$PATH" MORPHLIB="$HOME/ccode/morpheus/stemlib" ~/ccode/morpheus/bin/cruncher -L
 int run(int argc, char* argv[]) {
-    const char* home_env = std::getenv("HOME");
-    const char* path_env = std::getenv("PATH");
-    std::string home = home_env ? home_env : "";
-    std::string path = path_env ? path_env : "";
-
-    std::string cruncher_path = home + "/ccode/morpheus/bin/cruncher";
-    std::string morpheus_path =
-        home + "/ccode/morpheus/src/gkends:" +
-        home + "/ccode/morpheus/src/gkdict:" +
-        home + "/ccode/morpheus/src/gener:" +
-        home + "/ccode/morpheus/src/anal:" +
-        path;
-    std::string morphlib_path = home + "/ccode/morpheus/stemlib";
-    std::vector<std::pair<std::string, std::string>> env_vars = {
-        { "PATH", morpheus_path },
-        { "MORPHLIB", morphlib_path }
-    };
-    std::vector<std::string> args = { "-L" };
-
-    auto out = run_process(cruncher_path, "firmamentum", env_vars, args);
-    std::cout << "Exit: " << out.exit_code << '\n';
-    std::cout << out.output << '\n';
-    std::cout << "Done" << '\n';
-    exit(0);
     Config cfg = load_config();
 
     CLI::App app{"parallel-translation"};
@@ -168,6 +141,8 @@ int run(int argc, char* argv[]) {
     std::string input;
     std::string output;
     std::string backend = "ollama";
+    std::string postprocess = "morpheus";
+    bool breves = false;
     std::string model;
     std::string host;
     std::string log_level;
@@ -177,6 +152,10 @@ int run(int argc, char* argv[]) {
     app.add_option("--output,-o", output, "Output file path")->required();
     app.add_option("--backend", backend, "Translation backend: ollama, stub, pass")
         ->capture_default_str();
+    app.add_option("--postprocess", postprocess,
+                   "Macron postprocessor: morpheus, ollama, none")
+        ->capture_default_str();
+    app.add_flag("--breves", breves, "Mark short vowels with a breve (morpheus only)");
     app.add_option("--ollama-model", model, "Ollama model name (overrides config)");
     app.add_option("--ollama-host", host, "Ollama host URL (overrides config)");
     app.add_option("--log-level", log_level, "Log level: trace/debug/info/warn/error/critical/off");
@@ -213,9 +192,14 @@ int run(int argc, char* argv[]) {
     std::optional<PdfWriter> pdf_pw;
     FormattedWriter formatted_write;
 
-    auto postprocessor = (backend == "ollama")
-                             ? make_ollama_macron_translator(cfg.ollama_model, cfg.ollama_host)
-                             : pass_translator;
+    Translator postprocessor;
+    if (postprocess == "morpheus") {
+        postprocessor = make_morpheus_macron_translator("", breves);
+    } else if (postprocess == "ollama") {
+        postprocessor = make_ollama_macron_translator(cfg.ollama_model, cfg.ollama_host);
+    } else {
+        postprocessor = pass_translator;
+    }
 
     if (ext == ".txt") {
         txt_sw.emplace(txt_writer(output));
