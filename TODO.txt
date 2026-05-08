@@ -5,3 +5,7 @@
 - Detection for headers/footers, or options set margins for pdf
 - pause/resume
 
+- make unit tests for morpheus translator
+- refactor make_* translator method
+- do not call morpheus on each word
+
