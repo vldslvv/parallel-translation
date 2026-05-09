@@ -11,15 +11,28 @@ Use this skill to run the `parallel-translation` CLI. Focus on prerequisites, in
 
 `parallel-translation` creates parallel translations from an input file to an output file.
 
-Supported inputs:
+## Format Support
+
+The CLI supports text and PDF formats. Format is selected by the file extension; there is no separate format flag.
+
+Supported input extensions:
 
 - `.txt`
 - `.pdf`
 
-Supported outputs:
+Supported output extensions:
 
 - `.txt`
 - `.pdf`
+
+To specify input or output format, use a path ending in the correct extension:
+
+```sh
+parallel-translation --input input.txt --output output.pdf
+parallel-translation --input input.pdf --output output.txt
+```
+
+Before running a job, verify that the input path and output path each end in `.txt` or `.pdf`. Treat missing, misspelled, or unsupported extensions as invalid job setup.
 
 The tool reads the input, splits it into translation units, translates units concurrently, optionally postprocesses the original Latin text, and writes original/translation pairs in input order.
 
@@ -132,7 +145,7 @@ If the selected model is missing, pull it first:
 ollama pull llama3
 ```
 
-For smoke tests that must not call an LLM, use:
+For smoke tests that must not call an LLM or Morpheus, use:
 
 ```sh
 --backend pass --postprocess none
@@ -161,6 +174,9 @@ Example config:
 host = "http://localhost:11434"
 model = "llama3"
 
+[morpheus]
+dir = "/home/user/ccode/morpheus"
+
 [translation]
 source_lang = "la"
 target_lang = "en"
@@ -174,25 +190,45 @@ Environment variables override the config file:
 
 - `PT_OLLAMA_HOST`
 - `PT_OLLAMA_MODEL`
+- `PT_MORPHEUS_DIR`
 - `PT_SOURCE_LANG`
 - `PT_TARGET_LANG`
 - `PT_LOG_LEVEL`
 - `PT_PARALLELISM`
 
-Command-line options for model, host, log level, and parallelism override config-derived values for one run.
+Command-line options for model, host, Morpheus directory, log level, and parallelism override config-derived values for one run.
+
+Morpheus postprocessing requires `dir` to be set through `[morpheus].dir`,
+`PT_MORPHEUS_DIR`, or `--morpheus-dir`. Use `--postprocess none` when Morpheus
+is not configured.
+
+Examples without `--morpheus-dir` assume `[morpheus].dir` or
+`PT_MORPHEUS_DIR` is already set.
 
 ## Running Jobs
 
-Basic text-to-text:
+Text input to text output:
 
 ```sh
-parallel-translation --input input.txt --output output.txt
+parallel-translation --input input.txt --output output.txt --morpheus-dir /home/user/ccode/morpheus
 ```
 
-PDF to PDF:
+PDF input to PDF output:
 
 ```sh
-parallel-translation --input input.pdf --output output.pdf
+parallel-translation --input input.pdf --output output.pdf --morpheus-dir /home/user/ccode/morpheus
+```
+
+Text input to PDF output:
+
+```sh
+parallel-translation --input input.txt --output output.pdf --morpheus-dir /home/user/ccode/morpheus
+```
+
+PDF input to text output:
+
+```sh
+parallel-translation --input input.pdf --output output.txt --morpheus-dir /home/user/ccode/morpheus
 ```
 
 Specific model:
@@ -222,7 +258,13 @@ parallel-translation --input input.txt --output output.txt --postprocess none
 Use Morpheus postprocessing with breves:
 
 ```sh
-parallel-translation --input input.txt --output output.txt --postprocess morpheus --breves
+parallel-translation --input input.txt --output output.txt --postprocess morpheus --breves --morpheus-dir /home/user/ccode/morpheus
+```
+
+Use Morpheus from a non-default directory:
+
+```sh
+parallel-translation --input input.txt --output output.txt --postprocess morpheus --morpheus-dir /home/user/ccode/morpheus
 ```
 
 ## Autonomous Run Checklist
@@ -230,13 +272,14 @@ parallel-translation --input input.txt --output output.txt --postprocess morpheu
 Before a real job:
 
 1. Confirm the binary works: `parallel-translation --help` or `./build/Release/parallel-translation --help`.
-2. Confirm the input file exists and uses `.txt` or `.pdf`.
-3. Confirm the output path uses `.txt` or `.pdf`.
-4. Avoid overwriting important output files unless explicitly requested.
-5. If using Ollama, confirm the server is reachable and the model is available.
-6. Run a smoke test with `--backend pass --postprocess none`.
-7. Run the real job with conservative `--parallelism`, usually `1` to `4` for local Ollama.
-8. Treat any nonzero exit code as failure and inspect logs/output.
+2. Confirm the input file exists.
+3. Confirm the input file extension is `.txt` or `.pdf`; this selects the input format.
+4. Confirm the output path extension is `.txt` or `.pdf`; this selects the output format.
+5. Avoid overwriting important output files unless explicitly requested.
+6. If using Ollama, confirm the server is reachable and the model is available.
+7. Run a smoke test with `--backend pass --postprocess none`.
+8. Run the real job with conservative `--parallelism`, usually `1` to `4` for local Ollama.
+9. Treat any nonzero exit code as failure and inspect logs/output.
 
 For long jobs, write to a new output filename.
 

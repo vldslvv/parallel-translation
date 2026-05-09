@@ -145,6 +145,7 @@ int run(int argc, char* argv[]) {
     bool breves = false;
     std::string model;
     std::string host;
+    std::string morpheus_dir;
     std::string log_level;
     int parallelism = cfg.parallelism;
 
@@ -158,6 +159,8 @@ int run(int argc, char* argv[]) {
     app.add_flag("--breves", breves, "Mark short vowels with a breve (morpheus only)");
     app.add_option("--ollama-model", model, "Ollama model name (overrides config)");
     app.add_option("--ollama-host", host, "Ollama host URL (overrides config)");
+    app.add_option("--morpheus-dir", morpheus_dir,
+                   "Morpheus directory (overrides config)");
     app.add_option("--log-level", log_level, "Log level: trace/debug/info/warn/error/critical/off");
     app.add_option("--parallelism", parallelism, "Max concurrent translations")
         ->capture_default_str();
@@ -168,16 +171,25 @@ int run(int argc, char* argv[]) {
         cfg.ollama_model = model;
     if (!host.empty())
         cfg.ollama_host = host;
+    if (!morpheus_dir.empty())
+        cfg.morpheus_dir = morpheus_dir;
     if (!log_level.empty())
         cfg.log_level = log_level;
     spdlog::set_level(spdlog::level::from_str(cfg.log_level));
     spdlog::debug("config: file={}", cfg.config_file.empty() ? "(none)" : cfg.config_file);
     spdlog::debug("config: ollama_host={}", cfg.ollama_host);
     spdlog::debug("config: ollama_model={}", cfg.ollama_model);
+    spdlog::debug("config: morpheus_dir={}", cfg.morpheus_dir);
     spdlog::debug("config: source_lang={}", cfg.source_lang);
     spdlog::debug("config: target_lang={}", cfg.target_lang);
     spdlog::debug("config: log_level={}", cfg.log_level);
     spdlog::debug("config: parallelism={}", parallelism);
+
+    if (postprocess == "morpheus" && cfg.morpheus_dir.empty()) {
+        spdlog::error("morpheus postprocessing requires --morpheus-dir, "
+                      "PT_MORPHEUS_DIR, or [morpheus].dir");
+        return exit_code::usage_error;
+    }
 
     auto reader = get_reader(input);
     if (!reader) {
@@ -194,7 +206,7 @@ int run(int argc, char* argv[]) {
 
     Translator postprocessor;
     if (postprocess == "morpheus") {
-        postprocessor = make_morpheus_macron_translator("", breves);
+        postprocessor = make_morpheus_macron_translator(cfg.morpheus_dir, breves);
     } else if (postprocess == "ollama") {
         postprocessor = make_ollama_macron_translator(cfg.ollama_model, cfg.ollama_host);
     } else {

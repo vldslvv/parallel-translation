@@ -15,7 +15,8 @@ TEST_CASE("tokenizer: basic sentence separators preserved", "[integration]") {
         f << "Hello, world.";
     }
 
-    const char* argv[] = {"app", "--backend", "stub", "-i", in, "-o", out};
+    const char* argv[] = {"app", "--backend", "stub", "--postprocess", "none",
+                          "-i",  in,         "-o",            out};
     CHECK(run(std::size(argv), const_cast<char**>(argv)) == 0);
 
     auto result = read_file(out);
@@ -32,7 +33,8 @@ TEST_CASE("tokenizer: empty input produces empty output", "[integration]") {
         std::ofstream f{in};
     }
 
-    const char* argv[] = {"app", "--backend", "stub", "-i", in, "-o", out};
+    const char* argv[] = {"app", "--backend", "stub", "--postprocess", "none",
+                          "-i",  in,         "-o",            out};
     CHECK(run(std::size(argv), const_cast<char**>(argv)) == 0);
 
     CHECK(read_file(out).empty());
@@ -49,7 +51,8 @@ TEST_CASE("tokenizer: single word", "[integration]") {
         f << "word";
     }
 
-    const char* argv[] = {"app", "--backend", "stub", "-i", in, "-o", out};
+    const char* argv[] = {"app", "--backend", "stub", "--postprocess", "none",
+                          "-i",  in,         "-o",            out};
     CHECK(run(std::size(argv), const_cast<char**>(argv)) == 0);
 
     auto result = read_file(out);
@@ -67,7 +70,8 @@ TEST_CASE("tokenizer: dashes and question marks preserved", "[integration]") {
         f << "Why-not? Yes!";
     }
 
-    const char* argv[] = {"app", "--backend", "stub", "-i", in, "-o", out};
+    const char* argv[] = {"app", "--backend", "stub", "--postprocess", "none",
+                          "-i",  in,         "-o",            out};
     CHECK(run(std::size(argv), const_cast<char**>(argv)) == 0);
 
     auto result = read_file(out);

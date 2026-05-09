@@ -19,6 +19,8 @@ static void apply_env(Config& cfg) {
         cfg.ollama_host = v;
     if (const char* v = std::getenv("PT_OLLAMA_MODEL"))
         cfg.ollama_model = v;
+    if (const char* v = std::getenv("PT_MORPHEUS_DIR"))
+        cfg.morpheus_dir = v;
     if (const char* v = std::getenv("PT_SOURCE_LANG"))
         cfg.source_lang = v;
     if (const char* v = std::getenv("PT_TARGET_LANG"))
@@ -45,6 +47,8 @@ Config load_config() {
             cfg.ollama_host = *v;
         if (auto v = tbl["ollama"]["model"].value<std::string>())
             cfg.ollama_model = *v;
+        if (auto v = tbl["morpheus"]["dir"].value<std::string>())
+            cfg.morpheus_dir = *v;
         if (auto v = tbl["translation"]["source_lang"].value<std::string>())
             cfg.source_lang = *v;
         if (auto v = tbl["translation"]["target_lang"].value<std::string>())

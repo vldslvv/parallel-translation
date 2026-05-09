@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cstdio>
+#include <cstdlib>
 #include <string>
 
 #include "app.hpp"
@@ -11,7 +12,8 @@ static const char* INPUT = ASSETS_DIR "/latin_example.txt";
 static const char* OUTPUT = ASSETS_DIR "/latin_example_out.txt";
 
 TEST_CASE("translates input file to output file", "[integration]") {
-    const char* argv[] = {"app", "--backend", "stub", "-i", INPUT, "-o", OUTPUT};
+    const char* argv[] = {"app", "--backend", "stub", "--postprocess", "none",
+                          "-i",  INPUT,      "-o",            OUTPUT};
 
     CHECK(run(std::size(argv), const_cast<char**>(argv)) == 0);
 
@@ -27,6 +29,8 @@ TEST_CASE("errors on non-existent input file", "[integration]") {
     const char* argv[] = {"app",
                           "--backend",
                           "stub",
+                          "--postprocess",
+                          "none",
                           "-i",
                           ASSETS_DIR // NOLINT(bugprone-suspicious-missing-comma)
                           "/nonexistent.txt",
@@ -37,8 +41,20 @@ TEST_CASE("errors on non-existent input file", "[integration]") {
 }
 
 TEST_CASE("errors when parallelism exceeds semaphore capacity", "[integration]") {
-    const char* argv[] = {"app", "--backend", "stub",          "-i",  INPUT,
-                          "-o",  OUTPUT,      "--parallelism", "1025"};
+    const char* argv[] = {"app", "--backend", "stub",          "--postprocess", "none",
+                          "-i",  INPUT,      "-o",            OUTPUT,         "--parallelism",
+                          "1025"};
+
+    CHECK(run(std::size(argv), const_cast<char**>(argv)) == exit_code::usage_error);
+
+    std::remove(OUTPUT);
+}
+
+TEST_CASE("errors when morpheus postprocessing has no directory", "[integration]") {
+    setenv("XDG_CONFIG_HOME", ASSETS_DIR, 1);
+    unsetenv("PT_MORPHEUS_DIR");
+
+    const char* argv[] = {"app", "--backend", "stub", "-i", INPUT, "-o", OUTPUT};
 
     CHECK(run(std::size(argv), const_cast<char**>(argv)) == exit_code::usage_error);
 

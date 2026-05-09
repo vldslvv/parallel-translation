@@ -134,9 +134,9 @@ parse_cruncher_output(const std::string& output, bool render_breves) {
     return word_map;
 }
 
-Translator make_morpheus_macron_translator(const std::string& morpheus_base,
+Translator make_morpheus_macron_translator(const std::string& morpheus_dir,
                                            bool render_breves) {
-    return [morpheus_base, render_breves](std::string_view text) -> std::string {
+    return [morpheus_dir, render_breves](std::string_view text) -> std::string {
         auto split = split_words(std::string{text});
         if (split.words.empty())
             return std::string{text};
@@ -147,21 +147,13 @@ Translator make_morpheus_macron_translator(const std::string& morpheus_base,
         for (const auto& w : split.words)
             input += w + '\n';
 
-        std::string base;
-        if (!morpheus_base.empty()) {
-            base = morpheus_base;
-        } else {
-            const char* home = std::getenv("HOME");
-            base = home ? home : "";
-        }
-
-        std::string cruncher = base + "/ccode/morpheus/bin/cruncher";
-        std::string path_env = base + "/ccode/morpheus/src/gkends:" +
-                               base + "/ccode/morpheus/src/gkdict:" +
-                               base + "/ccode/morpheus/src/gener:"  +
-                               base + "/ccode/morpheus/src/anal:"   +
+        std::string cruncher = morpheus_dir + "/bin/cruncher";
+        std::string path_env = morpheus_dir + "/src/gkends:" +
+                               morpheus_dir + "/src/gkdict:" +
+                               morpheus_dir + "/src/gener:"  +
+                               morpheus_dir + "/src/anal:"   +
                                (std::getenv("PATH") ? std::getenv("PATH") : "");
-        std::string morphlib = base + "/ccode/morpheus/stemlib";
+        std::string morphlib = morpheus_dir + "/stemlib";
 
         auto result = run_process(cruncher, input,
                                   {{"PATH", path_env}, {"MORPHLIB", morphlib}},

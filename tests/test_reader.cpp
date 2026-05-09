@@ -12,7 +12,8 @@ static void write_file(const char* path, const std::string& content) {
 }
 
 static std::string run_pass(const char* in, const char* out) {
-    const char* argv[] = {"app", "--backend", "pass", "-i", in, "-o", out};
+    const char* argv[] = {"app", "--backend", "pass", "--postprocess", "none",
+                          "-i",  in,          "-o",   out};
     run(std::size(argv), const_cast<char**>(argv));
     return read_file(out);
 }
