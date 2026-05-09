@@ -40,6 +40,24 @@ Required system capabilities:
 
 Project C++ dependencies are managed by Conan. Prefer Conan over manually installing C++ libraries.
 
+The active Conan profile must use C++23:
+
+```ini
+compiler.cppstd=23
+```
+
+Check it with:
+
+```sh
+conan profile show -pr default
+```
+
+If needed, update the default profile:
+
+```sh
+conan profile update settings.compiler.cppstd=23 default
+```
+
 Install Conan in an isolated Python environment. Preferred:
 
 ```sh
