@@ -106,6 +106,24 @@ Build the optimized release binary:
 make release
 ```
 
+On less-capable systems, set a lower compilation thread count to avoid memory
+pressure, hangs, or failed compiler processes. The Makefile uses CMake builds,
+so control build concurrency with `CMAKE_BUILD_PARALLEL_LEVEL`:
+
+```sh
+CMAKE_BUILD_PARALLEL_LEVEL=1 make build
+CMAKE_BUILD_PARALLEL_LEVEL=1 make release
+```
+
+Suggested Raspberry Pi values:
+
+- Raspberry Pi Zero, Zero 2 W, or older 1 GB boards: `CMAKE_BUILD_PARALLEL_LEVEL=1`
+- Raspberry Pi 4 or 5 with 2 GB to 4 GB RAM: `CMAKE_BUILD_PARALLEL_LEVEL=2`
+- Raspberry Pi 4 or 5 with 8 GB RAM, adequate cooling, and swap: `CMAKE_BUILD_PARALLEL_LEVEL=3` or `4`
+
+If compilation fails or the system becomes unresponsive, retry with
+`CMAKE_BUILD_PARALLEL_LEVEL=1`.
+
 Install the release binary to the default prefix:
 
 ```sh
@@ -126,12 +144,15 @@ If not installing, run the built binary directly:
 
 ## Translation Backend
 
-The default backend is `ollama`. For real translation jobs, ensure Ollama is installed, running, and has the selected model available.
+The default backend is `ollama`. Treat Ollama as an external service owned
+outside this system. Do not install, start, stop, restart, configure, or pull
+models with Ollama while using this skill. Only point `parallel-translation` at
+an already available Ollama endpoint and selected model.
 
 Defaults:
 
 - Ollama host: `http://localhost:11434`
-- Ollama model: `llama3`
+- Ollama model: `gemma3:27b`
 
 Check backend reachability before long jobs:
 
@@ -139,11 +160,9 @@ Check backend reachability before long jobs:
 curl http://localhost:11434/api/tags
 ```
 
-If the selected model is missing, pull it first:
-
-```sh
-ollama pull llama3
-```
+If the selected model is missing or the server is unreachable, report that
+Ollama is not ready and ask the user or the external Ollama operator to make the
+service/model available. Do not remediate it from this skill.
 
 For smoke tests that must not call an LLM or Morpheus, use:
 
@@ -172,15 +191,15 @@ Example config:
 ```toml
 [ollama]
 host = "http://localhost:11434"
-model = "llama3"
+model = "gemma3:27b"
 
 [morpheus]
-dir = "/home/user/ccode/morpheus"
+dir = "/home/user/code/morpheus"
 
 [translation]
 source_lang = "la"
 target_lang = "en"
-parallelism = 4
+parallelism = 1
 
 [log]
 level = "warn"
@@ -210,31 +229,31 @@ Examples without `--morpheus-dir` assume `[morpheus].dir` or
 Text input to text output:
 
 ```sh
-parallel-translation --input input.txt --output output.txt --morpheus-dir /home/user/ccode/morpheus
+parallel-translation --input input.txt --output output.txt --morpheus-dir /home/user/code/morpheus
 ```
 
 PDF input to PDF output:
 
 ```sh
-parallel-translation --input input.pdf --output output.pdf --morpheus-dir /home/user/ccode/morpheus
+parallel-translation --input input.pdf --output output.pdf --morpheus-dir /home/user/code/morpheus
 ```
 
 Text input to PDF output:
 
 ```sh
-parallel-translation --input input.txt --output output.pdf --morpheus-dir /home/user/ccode/morpheus
+parallel-translation --input input.txt --output output.pdf --morpheus-dir /home/user/code/morpheus
 ```
 
 PDF input to text output:
 
 ```sh
-parallel-translation --input input.pdf --output output.txt --morpheus-dir /home/user/ccode/morpheus
+parallel-translation --input input.pdf --output output.txt --morpheus-dir /home/user/code/morpheus
 ```
 
 Specific model:
 
 ```sh
-parallel-translation --input input.txt --output output.txt --ollama-model llama3
+parallel-translation --input input.txt --output output.txt --ollama-model gemma3:27
 ```
 
 Specific host:
@@ -243,7 +262,8 @@ Specific host:
 parallel-translation --input input.txt --output output.txt --ollama-host http://localhost:11434
 ```
 
-Lower concurrency for local or unstable backends:
+Set concurrency. Use `--parallelism 1` unless the user explicitly instructs a
+different value:
 
 ```sh
 parallel-translation --input input.txt --output output.txt --parallelism 1
@@ -258,13 +278,13 @@ parallel-translation --input input.txt --output output.txt --postprocess none
 Use Morpheus postprocessing with breves:
 
 ```sh
-parallel-translation --input input.txt --output output.txt --postprocess morpheus --breves --morpheus-dir /home/user/ccode/morpheus
+parallel-translation --input input.txt --output output.txt --postprocess morpheus --breves --morpheus-dir /home/user/code/morpheus
 ```
 
 Use Morpheus from a non-default directory:
 
 ```sh
-parallel-translation --input input.txt --output output.txt --postprocess morpheus --morpheus-dir /home/user/ccode/morpheus
+parallel-translation --input input.txt --output output.txt --postprocess morpheus --morpheus-dir /home/user/code/morpheus
 ```
 
 ## Autonomous Run Checklist
@@ -276,9 +296,9 @@ Before a real job:
 3. Confirm the input file extension is `.txt` or `.pdf`; this selects the input format.
 4. Confirm the output path extension is `.txt` or `.pdf`; this selects the output format.
 5. Avoid overwriting important output files unless explicitly requested.
-6. If using Ollama, confirm the server is reachable and the model is available.
+6. If using Ollama, confirm the external server is reachable and the model is available.
 7. Run a smoke test with `--backend pass --postprocess none`.
-8. Run the real job with conservative `--parallelism`, usually `1` to `4` for local Ollama.
+8. Run the real job with `--parallelism 1` unless the user explicitly instructs a different value.
 9. Treat any nonzero exit code as failure and inspect logs/output.
 
 For long jobs, write to a new output filename.
@@ -308,7 +328,7 @@ If a job fails:
 
 - Use absolute paths from automation.
 - Keep Python tools in `pipx` or a project virtual environment.
-- Keep `--parallelism` conservative for local LLMs.
+- Use `--parallelism 1` for Ollama-backed jobs unless instructed otherwise.
 - Do not overwrite existing outputs without explicit permission.
 - Prefer smoke tests before real translation.
 - Manually inspect PDF output when possible; PDF formatting depends on document structure.

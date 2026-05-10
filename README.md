@@ -20,7 +20,7 @@ Example config:
 ```toml
 [ollama]
 host = "http://localhost:11434"
-model = "llama3"
+model = "gemma3:27b"
 
 [morpheus]
 dir = "/home/user/ccode/morpheus"
@@ -28,7 +28,7 @@ dir = "/home/user/ccode/morpheus"
 [translation]
 source_lang = "la"
 target_lang = "en"
-parallelism = 4
+parallelism = 1
 
 [log]
 level = "warn"

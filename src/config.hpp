@@ -3,13 +3,13 @@
 
 struct Config {
     std::string ollama_host = "http://localhost:11434";
-    std::string ollama_model = "llama3";
+    std::string ollama_model = "gemma3:27b";
     std::string morpheus_dir;
     std::string source_lang = "la";
     std::string target_lang = "en";
     std::string log_level = "warn";
     std::string config_file; // path used, empty if none found
-    int parallelism = 4;
+    int parallelism = 1;
 };
 
 // Loads config from (in order of increasing priority):
