@@ -115,11 +115,15 @@ CMAKE_BUILD_PARALLEL_LEVEL=1 make build
 CMAKE_BUILD_PARALLEL_LEVEL=1 make release
 ```
 
-Suggested Raspberry Pi values:
+For a generic Raspberry Pi with 8 GB RAM, start with:
 
-- Raspberry Pi Zero, Zero 2 W, or older 1 GB boards: `CMAKE_BUILD_PARALLEL_LEVEL=1`
-- Raspberry Pi 4 or 5 with 2 GB to 4 GB RAM: `CMAKE_BUILD_PARALLEL_LEVEL=2`
-- Raspberry Pi 4 or 5 with 8 GB RAM, adequate cooling, and swap: `CMAKE_BUILD_PARALLEL_LEVEL=3` or `4`
+```sh
+CMAKE_BUILD_PARALLEL_LEVEL=2 make build
+CMAKE_BUILD_PARALLEL_LEVEL=2 make release
+```
+
+Use `CMAKE_BUILD_PARALLEL_LEVEL=3` or `4` only when the system has adequate
+cooling and swap and remains responsive during compilation.
 
 If compilation fails or the system becomes unresponsive, retry with
 `CMAKE_BUILD_PARALLEL_LEVEL=1`.
