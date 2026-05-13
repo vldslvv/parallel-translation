@@ -15,6 +15,7 @@ class ParallelTranslation(ConanFile):
         self.requires("pdf-writer/4.6.7")
         self.requires("freetype/2.13.2")
         self.requires("poppler/25.11.0")
+        self.requires("morpheus/0.0.3")
 
     def layout(self):
         cmake_layout(self)

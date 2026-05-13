@@ -18,6 +18,13 @@ find_package(tomlplusplus REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(PDFHummus REQUIRED)
 find_package(poppler REQUIRED)
+find_package(morpheus REQUIRED)
+
+string(TOUPPER "${CMAKE_BUILD_TYPE}" PT_BUILD_TYPE_UPPER)
+set(PT_MORPHEUS_PACKAGE_DIR "${morpheus_PACKAGE_FOLDER_${PT_BUILD_TYPE_UPPER}}")
+if(NOT PT_MORPHEUS_PACKAGE_DIR)
+    message(FATAL_ERROR "Cannot resolve Morpheus package directory from Conan metadata")
+endif()
 
 add_executable(parallel-translation
     src/main.cpp
@@ -69,6 +76,9 @@ target_compile_options(parallel-translation PRIVATE
     # to embed symlink paths in debug info that the debugger can't resolve.
     # This rewrites them to the real path at compile time.
     $<$<CONFIG:Debug>:-fdebug-prefix-map=/home/vv=/mnt/shared_linux/home_shared>
+)
+target_compile_definitions(parallel-translation PRIVATE
+    PT_MORPHEUS_PACKAGE_DIR="${PT_MORPHEUS_PACKAGE_DIR}"
 )
 
 enable_testing()

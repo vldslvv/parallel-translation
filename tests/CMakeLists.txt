@@ -53,4 +53,7 @@ target_compile_options(test_integration PRIVATE
     $<$<CONFIG:Debug>:-fdebug-prefix-map=/home/vv=/mnt/shared_linux/home_shared>
 )
 target_compile_definitions(test_integration PRIVATE ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")
+target_compile_definitions(test_integration PRIVATE
+    PT_MORPHEUS_PACKAGE_DIR="${PT_MORPHEUS_PACKAGE_DIR}"
+)
 catch_discover_tests(test_integration)

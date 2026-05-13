@@ -4,21 +4,26 @@ DEBUG_DIR     := $(BUILD_DIR)/Debug
 RELEASE_DIR   := $(BUILD_DIR)/Release
 PREFIX        := $(HOME)/.local
 CONAN_PROFILE := $(HOME)/.conan2/profiles/default
+MORPHEUS_RECIPE := conan/recipes/morpheus
 
 $(CONAN_PROFILE):
 	conan profile detect
+
+.PHONY: morpheus-recipe
+morpheus-recipe:
+	conan export $(MORPHEUS_RECIPE)
 
 .PHONY: all
 all: build
 
 .PHONY: build
-build: $(CONAN_PROFILE)
+build: $(CONAN_PROFILE) morpheus-recipe
 	conan install . --build=missing -s build_type=Debug
 	cmake -B $(DEBUG_DIR) -DCMAKE_TOOLCHAIN_FILE=$(DEBUG_DIR)/generators/conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Debug
 	cmake --build $(DEBUG_DIR)
 
 .PHONY: release
-release: $(CONAN_PROFILE)
+release: $(CONAN_PROFILE) morpheus-recipe
 	conan install . --build=missing -s build_type=Release
 	cmake -B $(RELEASE_DIR) -DCMAKE_TOOLCHAIN_FILE=$(RELEASE_DIR)/generators/conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
 	cmake --build $(RELEASE_DIR)

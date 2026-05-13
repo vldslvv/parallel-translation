@@ -197,9 +197,6 @@ Example config:
 host = "http://localhost:11434"
 model = "gemma3:27b"
 
-[morpheus]
-dir = "/home/user/code/morpheus"
-
 [translation]
 source_lang = "la"
 target_lang = "en"
@@ -213,45 +210,40 @@ Environment variables override the config file:
 
 - `PT_OLLAMA_HOST`
 - `PT_OLLAMA_MODEL`
-- `PT_MORPHEUS_DIR`
 - `PT_SOURCE_LANG`
 - `PT_TARGET_LANG`
 - `PT_LOG_LEVEL`
 - `PT_PARALLELISM`
 
-Command-line options for model, host, Morpheus directory, log level, and parallelism override config-derived values for one run.
+Command-line options for model, host, log level, and parallelism override config-derived values for one run.
 
-Morpheus postprocessing requires `dir` to be set through `[morpheus].dir`,
-`PT_MORPHEUS_DIR`, or `--morpheus-dir`. Use `--postprocess none` when Morpheus
-is not configured.
-
-Examples without `--morpheus-dir` assume `[morpheus].dir` or
-`PT_MORPHEUS_DIR` is already set.
+Morpheus postprocessing uses the `morpheus/0.0.3` Conan package. No Morpheus
+directory configuration is supported.
 
 ## Running Jobs
 
 Text input to text output:
 
 ```sh
-parallel-translation --input input.txt --output output.txt --morpheus-dir /home/user/code/morpheus
+parallel-translation --input input.txt --output output.txt
 ```
 
 PDF input to PDF output:
 
 ```sh
-parallel-translation --input input.pdf --output output.pdf --morpheus-dir /home/user/code/morpheus
+parallel-translation --input input.pdf --output output.pdf
 ```
 
 Text input to PDF output:
 
 ```sh
-parallel-translation --input input.txt --output output.pdf --morpheus-dir /home/user/code/morpheus
+parallel-translation --input input.txt --output output.pdf
 ```
 
 PDF input to text output:
 
 ```sh
-parallel-translation --input input.pdf --output output.txt --morpheus-dir /home/user/code/morpheus
+parallel-translation --input input.pdf --output output.txt
 ```
 
 Specific model:
@@ -282,13 +274,7 @@ parallel-translation --input input.txt --output output.txt --postprocess none
 Use Morpheus postprocessing with breves:
 
 ```sh
-parallel-translation --input input.txt --output output.txt --postprocess morpheus --breves --morpheus-dir /home/user/code/morpheus
-```
-
-Use Morpheus from a non-default directory:
-
-```sh
-parallel-translation --input input.txt --output output.txt --postprocess morpheus --morpheus-dir /home/user/code/morpheus
+parallel-translation --input input.txt --output output.txt --postprocess morpheus --breves
 ```
 
 ## Autonomous Run Checklist

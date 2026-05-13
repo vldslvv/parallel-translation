@@ -1,7 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cstdio>
-#include <cstdlib>
 #include <string>
 
 #include "app.hpp"
@@ -44,17 +43,6 @@ TEST_CASE("errors when parallelism exceeds semaphore capacity", "[integration]")
     const char* argv[] = {"app", "--backend", "stub",          "--postprocess", "none",
                           "-i",  INPUT,      "-o",            OUTPUT,         "--parallelism",
                           "1025"};
-
-    CHECK(run(std::size(argv), const_cast<char**>(argv)) == exit_code::usage_error);
-
-    std::remove(OUTPUT);
-}
-
-TEST_CASE("errors when morpheus postprocessing has no directory", "[integration]") {
-    setenv("XDG_CONFIG_HOME", ASSETS_DIR, 1);
-    unsetenv("PT_MORPHEUS_DIR");
-
-    const char* argv[] = {"app", "--backend", "stub", "-i", INPUT, "-o", OUTPUT};
 
     CHECK(run(std::size(argv), const_cast<char**>(argv)) == exit_code::usage_error);
 
