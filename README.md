@@ -47,6 +47,21 @@ exports that recipe at the version defined in `conanfile.py` before installing
 dependencies, so no separate Morpheus checkout or directory configuration is
 required.
 
+## Dependencies
+
+The Makefile handles Morpheus installation through Conan:
+
+```sh
+make build
+```
+
+`conanfile.py` defines `MORPHEUS_VERSION`. The Makefile reads that value,
+exports `conan/recipes/morpheus` as `morpheus/<version>`, then runs
+`conan install . --build=missing`. This creates the local Morpheus package
+automatically when it is not already present.
+
+The same bootstrap happens for `make release` and `make test`.
+
 ## Examples
 
 ```sh

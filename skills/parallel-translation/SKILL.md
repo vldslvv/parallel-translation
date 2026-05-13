@@ -220,6 +220,22 @@ Command-line options for model, host, log level, and parallelism override config
 Morpheus postprocessing uses the vendored Morpheus Conan recipe at the version
 defined in `conanfile.py`. No Morpheus directory configuration is supported.
 
+## Dependency Installation
+
+Use the Makefile targets for builds and tests. They export the local Morpheus
+recipe before installing Conan dependencies:
+
+```sh
+make build
+make release
+make test
+```
+
+`conanfile.py` defines `MORPHEUS_VERSION`. The Makefile reads that value,
+exports `conan/recipes/morpheus` as `morpheus/<version>`, then runs
+`conan install . --build=missing`. Users do not need a separate Morpheus
+checkout or manual Conan export step.
+
 ## Running Jobs
 
 Text input to text output:
