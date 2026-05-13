@@ -5,13 +5,14 @@ RELEASE_DIR   := $(BUILD_DIR)/Release
 PREFIX        := $(HOME)/.local
 CONAN_PROFILE := $(HOME)/.conan2/profiles/default
 MORPHEUS_RECIPE := conan/recipes/morpheus
+MORPHEUS_VERSION := $(shell sed -n 's/^MORPHEUS_VERSION = "\([^"]*\)"/\1/p' conanfile.py)
 
 $(CONAN_PROFILE):
 	conan profile detect
 
 .PHONY: morpheus-recipe
 morpheus-recipe:
-	conan export $(MORPHEUS_RECIPE)
+	conan export $(MORPHEUS_RECIPE) --version=$(MORPHEUS_VERSION)
 
 .PHONY: all
 all: build

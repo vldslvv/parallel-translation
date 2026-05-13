@@ -42,9 +42,10 @@ Environment variables override the config file:
 
 Command-line options for model, host, log level, and parallelism override config-derived values for one run.
 
-Morpheus postprocessing uses the `morpheus/0.0.3` Conan package. The Makefile
-exports the vendored Morpheus recipe before installing dependencies, so no
-separate Morpheus checkout or directory configuration is required.
+Morpheus postprocessing uses the vendored Morpheus Conan recipe. The Makefile
+exports that recipe at the version defined in `conanfile.py` before installing
+dependencies, so no separate Morpheus checkout or directory configuration is
+required.
 
 ## Examples
 

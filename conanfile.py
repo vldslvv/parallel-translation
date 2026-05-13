@@ -1,6 +1,9 @@
 from conan import ConanFile
 from conan.tools.cmake import cmake_layout
 
+MORPHEUS_VERSION = "0.0.3"
+
+
 class ParallelTranslation(ConanFile):
     settings = "os", "compiler", "build_type", "arch"
     generators = "CMakeToolchain", "CMakeDeps"
@@ -15,7 +18,7 @@ class ParallelTranslation(ConanFile):
         self.requires("pdf-writer/4.6.7")
         self.requires("freetype/2.13.2")
         self.requires("poppler/25.11.0")
-        self.requires("morpheus/0.0.3")
+        self.requires(f"morpheus/{MORPHEUS_VERSION}")
 
     def layout(self):
         cmake_layout(self)

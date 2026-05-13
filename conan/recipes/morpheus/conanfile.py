@@ -8,7 +8,6 @@ from conan.tools.scm import Git
 
 class MorpheusConan(ConanFile):
     name = "morpheus"
-    version = "0.0.3"
     package_type = "application"
 
     settings = "os", "arch", "compiler", "build_type"
