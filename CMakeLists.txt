@@ -5,6 +5,8 @@ project(parallel-translation
     LANGUAGES CXX
 )
 
+include(GNUInstallDirs)
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -45,7 +47,20 @@ add_executable(parallel-translation
     src/formatters/plain.cpp
 )
 
-install(TARGETS parallel-translation RUNTIME DESTINATION bin)
+set(PT_PRIVATE_LIBEXECDIR "libexec")
+set(PT_MORPHEUS_INSTALL_LIBEXEC_DIR
+    "${PT_PRIVATE_LIBEXECDIR}/parallel-translation/morpheus")
+set(PT_MORPHEUS_INSTALL_SHARE_DIR
+    "${CMAKE_INSTALL_DATADIR}/parallel-translation/morpheus")
+
+install(TARGETS parallel-translation RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+install(PROGRAMS "${PT_MORPHEUS_PACKAGE_DIR}/bin/cruncher"
+        DESTINATION "${PT_MORPHEUS_INSTALL_LIBEXEC_DIR}/bin")
+install(DIRECTORY "${PT_MORPHEUS_PACKAGE_DIR}/libexec/morpheus"
+        DESTINATION "${PT_MORPHEUS_INSTALL_LIBEXEC_DIR}/libexec"
+        USE_SOURCE_PERMISSIONS)
+install(DIRECTORY "${PT_MORPHEUS_PACKAGE_DIR}/res/stemlib"
+        DESTINATION "${PT_MORPHEUS_INSTALL_SHARE_DIR}")
 
 # freetype is an explicit Conan dependency (conan.io/center/recipes/freetype).
 # Its Conan recipe intentionally omits INTERFACE_INCLUDE_DIRECTORIES from the
@@ -79,6 +94,9 @@ target_compile_options(parallel-translation PRIVATE
 )
 target_compile_definitions(parallel-translation PRIVATE
     PT_MORPHEUS_PACKAGE_DIR="${PT_MORPHEUS_PACKAGE_DIR}"
+    PT_INSTALL_BINDIR="${CMAKE_INSTALL_BINDIR}"
+    PT_MORPHEUS_INSTALL_LIBEXEC_DIR="${PT_MORPHEUS_INSTALL_LIBEXEC_DIR}"
+    PT_MORPHEUS_INSTALL_SHARE_DIR="${PT_MORPHEUS_INSTALL_SHARE_DIR}"
 )
 
 enable_testing()

@@ -36,6 +36,12 @@ class MorpheusConan(ConanFile):
     def package(self):
         cmake = CMake(self)
         cmake.install()
+        copy(
+            self,
+            "*",
+            os.path.join(self.source_folder, "stemlib"),
+            os.path.join(self.package_folder, "res", "stemlib"),
+        )
         copy(self, "LICENSE*", self.source_folder, os.path.join(self.package_folder, "licenses"))
 
     def package_info(self):

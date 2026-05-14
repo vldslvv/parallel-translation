@@ -140,6 +140,12 @@ The default install prefix is `$HOME/.local`, so the installed binary is usually
 $HOME/.local/bin/parallel-translation
 ```
 
+`make install` also installs Morpheus runtime files into private application
+directories. Morpheus helper binaries are not placed in `$HOME/.local/bin`;
+they live under `$HOME/.local/libexec/parallel-translation`, and Morpheus data
+lives under `$HOME/.local/share/parallel-translation`. The installed CLI uses
+those private files and should not require the Conan cache at runtime.
+
 If not installing, run the built binary directly:
 
 ```sh
@@ -234,7 +240,9 @@ make test
 `conanfile.py` defines `MORPHEUS_VERSION`. The Makefile reads that value,
 exports `conan/recipes/morpheus` as `morpheus/<version>`, then runs
 `conan install . --build=missing`. Users do not need a separate Morpheus
-checkout or manual Conan export step.
+checkout or manual Conan export step. During `make install`, Morpheus is copied
+from the Conan package into private install-prefix directories so only the main
+CLI is exposed on the user's command path.
 
 ## Running Jobs
 

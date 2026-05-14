@@ -62,6 +62,13 @@ automatically when it is not already present.
 
 The same bootstrap happens for `make release` and `make test`.
 
+`make install` copies the Morpheus runtime files from the Conan package into
+private application directories under the install prefix. With the default
+prefix, only `~/.local/bin/parallel-translation` is added to the normal command
+path; Morpheus helpers are hidden under `~/.local/libexec/parallel-translation`
+and data is installed under `~/.local/share/parallel-translation`. The installed
+binary uses those private files and does not need the Conan cache at runtime.
+
 ## Examples
 
 ```sh

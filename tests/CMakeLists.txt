@@ -55,5 +55,8 @@ target_compile_options(test_integration PRIVATE
 target_compile_definitions(test_integration PRIVATE ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")
 target_compile_definitions(test_integration PRIVATE
     PT_MORPHEUS_PACKAGE_DIR="${PT_MORPHEUS_PACKAGE_DIR}"
+    PT_INSTALL_BINDIR="${CMAKE_INSTALL_BINDIR}"
+    PT_MORPHEUS_INSTALL_LIBEXEC_DIR="${PT_MORPHEUS_INSTALL_LIBEXEC_DIR}"
+    PT_MORPHEUS_INSTALL_SHARE_DIR="${PT_MORPHEUS_INSTALL_SHARE_DIR}"
 )
 catch_discover_tests(test_integration)

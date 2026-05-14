@@ -1,22 +1,69 @@
 #include "morpheus.hpp"
-#include "text/text.hpp"
 #include "common/process.hpp"
+#include "text/text.hpp"
 
+#include <array>
 #include <cstdlib>
+#include <filesystem>
+#include <iterator>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <unordered_map>
 #include <vector>
 
 #include <spdlog/spdlog.h>
+#include <unistd.h>
+
+struct MorpheusRuntimePaths {
+    std::string cruncher;
+    std::string helper_dir;
+    std::string stemlib;
+};
+
+static MorpheusRuntimePaths morpheus_runtime_paths() {
+    std::error_code ec;
+    std::array<char, 4096> buf{};
+    // Linux exposes the current executable path through this procfs symlink.
+    ssize_t n = readlink("/proc/self/exe", buf.data(), buf.size() - 1);
+
+    if (n > 0) {
+        // Installed runs should use the private Morpheus copy installed next
+        // to parallel-translation, not the Conan cache. Derive the install
+        // prefix by removing CMAKE_INSTALL_BINDIR from the executable path.
+        auto exe = std::filesystem::path{std::string{buf.data(), static_cast<size_t>(n)}};
+        auto bindir = std::filesystem::path{PT_INSTALL_BINDIR};
+        auto depth = std::distance(bindir.begin(), bindir.end());
+        auto prefix = exe.parent_path();
+        for (decltype(depth) i = 0; i < depth && !prefix.empty(); ++i)
+            prefix = prefix.parent_path();
+
+        MorpheusRuntimePaths installed{
+            (prefix / PT_MORPHEUS_INSTALL_LIBEXEC_DIR / "bin" / "cruncher").string(),
+            (prefix / PT_MORPHEUS_INSTALL_LIBEXEC_DIR / "libexec" / "morpheus").string(),
+            (prefix / PT_MORPHEUS_INSTALL_SHARE_DIR / "stemlib").string(),
+        };
+        if (std::filesystem::exists(installed.cruncher, ec))
+            return installed;
+    }
+
+    // Build-tree runs do not have an installed private copy yet, so use the
+    // Morpheus package resolved by Conan at configure time.
+    auto root = std::filesystem::path{PT_MORPHEUS_PACKAGE_DIR};
+    return {
+        (root / "bin" / "cruncher").string(),
+        (root / "libexec" / "morpheus").string(),
+        (root / "res" / "stemlib").string(),
+    };
+}
 
 // Convert Perseus quantity notation to Unicode.
 // '_' after a vowel → macron (ā ē ī ō ū / Ā Ē Ī Ō Ū).
 // '^' after a vowel → breve (ă ĕ ĭ ŏ ŭ / Ă Ĕ Ĭ Ŏ Ŭ) when render_breves is true, else dropped.
 static std::string perseus_to_unicode(std::string_view s, bool render_breves) {
-    static constexpr std::string_view vowels  = "aeiouAEIOU";
-    static constexpr const char*      macrons[] = {"ā","ē","ī","ō","ū","Ā","Ē","Ī","Ō","Ū"};
-    static constexpr const char*      breves[]  = {"ă","ĕ","ĭ","ŏ","ŭ","Ă","Ĕ","Ĭ","Ŏ","Ŭ"};
+    static constexpr std::string_view vowels = "aeiouAEIOU";
+    static constexpr const char* macrons[] = {"ā", "ē", "ī", "ō", "ū", "Ā", "Ē", "Ī", "Ō", "Ū"};
+    static constexpr const char* breves[] = {"ă", "ĕ", "ĭ", "ŏ", "ŭ", "Ă", "Ĕ", "Ĭ", "Ŏ", "Ŭ"};
 
     std::string result;
     result.reserve(s.size() * 2);
@@ -66,10 +113,9 @@ static std::string extract_first_form(std::string_view line, bool render_breves)
         return {};
     auto content_start = nl_start + 4; // skip "<NL>"
     auto nl_end = line.find("</NL>", content_start);
-    std::string_view block = line.substr(content_start,
-                                         nl_end == std::string_view::npos
-                                             ? std::string_view::npos
-                                             : nl_end - content_start);
+    std::string_view block =
+        line.substr(content_start, nl_end == std::string_view::npos ? std::string_view::npos
+                                                                    : nl_end - content_start);
 
     // Skip part-of-speech letter(s) + following space(s)
     size_t i = 0;
@@ -95,8 +141,8 @@ static std::string extract_first_form(std::string_view line, bool render_breves)
 // Parse the full cruncher output into a word→macronized map.
 // The output contains word echo lines interspersed with <NL>…</NL> analysis lines.
 // Lines beginning with ':' are timing/cache messages and are skipped.
-static std::unordered_map<std::string, std::string>
-parse_cruncher_output(const std::string& output, bool render_breves) {
+static std::unordered_map<std::string, std::string> parse_cruncher_output(const std::string& output,
+                                                                          bool render_breves) {
     std::unordered_map<std::string, std::string> word_map;
     std::string current_word;
 
@@ -146,15 +192,13 @@ Translator make_morpheus_macron_translator(bool render_breves) {
         for (const auto& w : split.words)
             input += w + '\n';
 
-        std::string morpheus_package_dir = PT_MORPHEUS_PACKAGE_DIR;
-        std::string cruncher = morpheus_package_dir + "/bin/cruncher";
-        std::string path_env = morpheus_package_dir + "/libexec/morpheus:" +
-                               (std::getenv("PATH") ? std::getenv("PATH") : "");
-        std::string morphlib = morpheus_package_dir + "/res/stemlib";
+        auto paths = morpheus_runtime_paths();
+        std::string path_env =
+            paths.helper_dir + ":" + (std::getenv("PATH") ? std::getenv("PATH") : "");
+        spdlog::debug("morpheus: cruncher={}", paths.cruncher);
 
-        auto result = run_process(cruncher, input,
-                                  {{"PATH", path_env}, {"MORPHLIB", morphlib}},
-                                  {"-L"});
+        auto result = run_process(paths.cruncher, input,
+                                  {{"PATH", path_env}, {"MORPHLIB", paths.stemlib}}, {"-L"});
 
         spdlog::debug("morpheus: exit={} output_len={}", result.exit_code, result.output.size());
 
