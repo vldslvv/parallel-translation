@@ -193,6 +193,9 @@ Defaults:
 - Chat host: `http://localhost:11434`
 - Chat model: `gemma3:27b`
 - OpenRouter default host: `https://openrouter.ai`
+- Config can store both `[ollama]` and `[openrouter]`; the selected provider
+  chooses which config is active for the run. Treat provider tables as
+  provider-specific schemas, not a generic provider map.
 
 Check local Ollama reachability before long jobs:
 
@@ -200,7 +203,8 @@ Check local Ollama reachability before long jobs:
 curl http://localhost:11434/api/tags
 ```
 
-For OpenRouter, require an API key via `PT_CHAT_API_KEY` or `--chat-api-key`.
+For OpenRouter, require an API key in `[openrouter]`, via `PT_CHAT_API_KEY`, or
+via `--chat-api-key`.
 If the selected model is missing or the provider is unreachable, report that the
 chat API provider is not ready and ask the user or provider operator to make the
 service/model available. Do not remediate it from this skill.
@@ -251,8 +255,15 @@ Example config:
 ```toml
 [chat_api]
 provider = "ollama"
+
+[ollama]
 host = "http://localhost:11434"
 model = "gemma3:27b"
+api_key = ""
+
+[openrouter]
+host = "https://openrouter.ai"
+model = "google/gemma-4-31b-it"
 api_key = ""
 
 [translation]
@@ -275,7 +286,15 @@ Environment variables override the config file:
 - `PT_LOG_LEVEL`
 - `PT_PARALLELISM`
 
-Command-line options for provider, model, host, API key, log level, and parallelism override config-derived values for one run.
+`PT_CHAT_PROVIDER` selects the active provider config. `PT_CHAT_HOST`,
+`PT_CHAT_MODEL`, and `PT_CHAT_API_KEY` override only that active provider.
+Provider tables are provider-specific schemas; do not assume future providers
+will use the same fields.
+
+Command-line options for provider, model, host, API key, log level, and
+parallelism override config-derived values for one run. `--chat-provider`
+selects the active provider first, then `--chat-host`, `--chat-model`, and
+`--chat-api-key` apply to that provider.
 
 Morpheus postprocessing uses the vendored Morpheus Conan recipe at the version
 defined in `conanfile.py`. No Morpheus directory configuration is supported.
@@ -339,7 +358,7 @@ parallel-translation --input input.txt --output output.txt --chat-host http://lo
 OpenRouter:
 
 ```sh
-PT_CHAT_API_KEY=... parallel-translation --input input.txt --output output.txt --chat-provider openrouter --chat-model openai/gpt-4
+PT_CHAT_API_KEY=... parallel-translation --input input.txt --output output.txt --chat-provider openrouter --chat-model google/gemma-4-31b-it
 ```
 
 Set concurrency. Use `--parallelism 1` unless the user explicitly instructs a

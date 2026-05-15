@@ -25,12 +25,6 @@
 #include "writers/pdf.hpp"
 #include "writers/writer.hpp"
 
-static std::string default_chat_api_host(const std::string& provider) {
-    if (provider == "openrouter")
-        return "https://openrouter.ai";
-    return "http://localhost:11434";
-}
-
 static std::expected<Translator, int> get_translator(const std::string& backend,
                                                      const Config& cfg) {
     if (backend == "stub") {
@@ -41,7 +35,7 @@ static std::expected<Translator, int> get_translator(const std::string& backend,
     }
     if (backend == "chat-api") {
         try {
-            return make_chat_api_latin_to_english_translator(cfg.chat_api);
+            return make_chat_api_latin_to_english_translator(selected_chat_api_config(cfg));
         } catch (const std::exception& e) {
             spdlog::error("{}", e.what());
             return std::unexpected(exit_code::usage_error);
@@ -50,6 +44,27 @@ static std::expected<Translator, int> get_translator(const std::string& backend,
 
     spdlog::error("unknown backend: {}", backend);
     return std::unexpected(exit_code::usage_error);
+}
+
+static void apply_chat_api_cli_overrides(Config& cfg, const std::string& model,
+                                         const std::string& host, const std::string& api_key) {
+    if (cfg.chat_api_provider == "ollama") {
+        if (!model.empty())
+            cfg.ollama.model = model;
+        if (!host.empty())
+            cfg.ollama.host = host;
+        if (!api_key.empty())
+            cfg.ollama.api_key = api_key;
+        return;
+    }
+    if (cfg.chat_api_provider == "openrouter") {
+        if (!model.empty())
+            cfg.openrouter.model = model;
+        if (!host.empty())
+            cfg.openrouter.host = host;
+        if (!api_key.empty())
+            cfg.openrouter.api_key = api_key;
+    }
 }
 
 static std::expected<Reader, int> get_reader(std::string& input_file) {
@@ -168,9 +183,8 @@ int run(int argc, char* argv[]) {
     app.add_option("--postprocess", postprocess, "Macron postprocessor: morpheus, chat-api, none")
         ->capture_default_str();
     app.add_flag("--breves", breves, "Mark short vowels with a breve (morpheus only)");
-    auto* provider_opt =
-        app.add_option("--chat-provider", provider, "Chat API provider: ollama, openrouter");
-    auto* host_opt = app.add_option("--chat-host", host, "Chat API host URL (overrides config)");
+    app.add_option("--chat-provider", provider, "Chat API provider: ollama, openrouter");
+    app.add_option("--chat-host", host, "Chat API host URL (overrides config)");
     app.add_option("--chat-model", model, "Chat API model name (overrides config)");
     app.add_option("--chat-api-key", api_key, "Chat API key (overrides config)");
     app.add_option("--log-level", log_level, "Log level: trace/debug/info/warn/error/critical/off");
@@ -180,24 +194,23 @@ int run(int argc, char* argv[]) {
     CLI11_PARSE(app, argc, argv);
 
     if (!provider.empty())
-        cfg.chat_api.provider = provider;
-    if (provider_opt->count() > 0 && host_opt->count() == 0)
-        cfg.chat_api.host = default_chat_api_host(cfg.chat_api.provider);
-    if (!model.empty())
-        cfg.chat_api.model = model;
-    if (!host.empty())
-        cfg.chat_api.host = host;
-    if (!api_key.empty())
-        cfg.chat_api.api_key = api_key;
+        cfg.chat_api_provider = provider;
+    apply_chat_api_cli_overrides(cfg, model, host, api_key);
+    ChatApiConfig chat_api;
+    try {
+        chat_api = selected_chat_api_config(cfg);
+    } catch (const std::exception& e) {
+        spdlog::error("{}", e.what());
+        return exit_code::usage_error;
+    }
     if (!log_level.empty())
         cfg.log_level = log_level;
     spdlog::set_level(spdlog::level::from_str(cfg.log_level));
     spdlog::debug("config: file={}", cfg.config_file.empty() ? "(none)" : cfg.config_file);
-    spdlog::debug("config: chat_api_provider={}", cfg.chat_api.provider);
-    spdlog::debug("config: chat_api_host={}", cfg.chat_api.host);
-    spdlog::debug("config: chat_api_model={}", cfg.chat_api.model);
-    spdlog::debug("config: chat_api_api_key={}",
-                  cfg.chat_api.api_key.empty() ? "(empty)" : "(set)");
+    spdlog::debug("config: chat_api_provider={}", cfg.chat_api_provider);
+    spdlog::debug("config: chat_api_host={}", chat_api.host);
+    spdlog::debug("config: chat_api_model={}", chat_api.model);
+    spdlog::debug("config: chat_api_api_key={}", chat_api.api_key.empty() ? "(empty)" : "(set)");
     spdlog::debug("config: source_lang={}", cfg.source_lang);
     spdlog::debug("config: target_lang={}", cfg.target_lang);
     spdlog::debug("config: log_level={}", cfg.log_level);
@@ -221,7 +234,7 @@ int run(int argc, char* argv[]) {
         postprocessor = make_morpheus_macron_translator(breves);
     } else if (postprocess == "chat-api") {
         try {
-            postprocessor = make_chat_api_macron_translator(cfg.chat_api);
+            postprocessor = make_chat_api_macron_translator(selected_chat_api_config(cfg));
         } catch (const std::exception& e) {
             spdlog::error("{}", e.what());
             return exit_code::usage_error;

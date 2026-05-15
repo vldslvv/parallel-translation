@@ -1,15 +1,22 @@
 #pragma once
 #include <string>
 
-struct ChatApiConfig {
-    std::string provider = "ollama";
-    std::string host;
+struct OllamaConfig {
+    std::string host = "http://localhost:11434";
     std::string model = "gemma3:27b";
     std::string api_key;
 };
 
+struct OpenRouterConfig {
+    std::string host = "https://openrouter.ai";
+    std::string model = "google/gemma-4-31b-it";
+    std::string api_key;
+};
+
 struct Config {
-    ChatApiConfig chat_api;
+    std::string chat_api_provider = "ollama";
+    OllamaConfig ollama;
+    OpenRouterConfig openrouter;
     std::string source_lang = "la";
     std::string target_lang = "en";
     std::string log_level = "warn";
@@ -17,8 +24,18 @@ struct Config {
     int parallelism = 1;
 };
 
+struct ChatApiConfig {
+    std::string provider;
+    std::string host;
+    std::string model;
+    std::string api_key;
+};
+
 // Loads config from (in order of increasing priority):
+//   built-in provider defaults
 //   $XDG_CONFIG_HOME/parallel-translation/config.toml
 //   environment variables (PT_CHAT_PROVIDER, PT_CHAT_HOST, PT_CHAT_MODEL,
 //   PT_CHAT_API_KEY, PT_SOURCE_LANG, PT_TARGET_LANG)
 Config load_config();
+
+ChatApiConfig selected_chat_api_config(const Config& cfg);

@@ -93,12 +93,19 @@ TEST_CASE("translates input file to output file", "[integration]") {
     std::remove(OUTPUT);
 }
 
-TEST_CASE("loads chat api config from toml and env", "[config]") {
+TEST_CASE("loads provider-specific chat api config from toml and env", "[config]") {
     auto config_dir = make_config_dir();
     std::ofstream config{config_dir / "parallel-translation" / "config.toml"};
     config << "[chat_api]\n"
               "provider = \"openrouter\"\n"
-              "host = \"https://example.invalid\"\n"
+              "\n"
+              "[ollama]\n"
+              "host = \"http://ollama.invalid\"\n"
+              "model = \"llama3\"\n"
+              "api_key = \"ollama-key\"\n"
+              "\n"
+              "[openrouter]\n"
+              "host = \"https://openrouter.invalid\"\n"
               "model = \"anthropic/claude-sonnet-4\"\n"
               "api_key = \"from-file\"\n"
               "\n"
@@ -113,12 +120,52 @@ TEST_CASE("loads chat api config from toml and env", "[config]") {
     EnvVar key{"PT_CHAT_API_KEY", "from-env"};
 
     auto cfg = load_config();
+    const auto chat = selected_chat_api_config(cfg);
 
-    CHECK(cfg.chat_api.provider == "openrouter");
-    CHECK(cfg.chat_api.host == "https://example.invalid");
-    CHECK(cfg.chat_api.model == "openai/gpt-4o-mini");
-    CHECK(cfg.chat_api.api_key == "from-env");
+    CHECK(cfg.chat_api_provider == "openrouter");
+    CHECK(chat.provider == "openrouter");
+    CHECK(chat.host == "https://openrouter.invalid");
+    CHECK(chat.model == "openai/gpt-4o-mini");
+    CHECK(chat.api_key == "from-env");
+    CHECK(cfg.ollama.host == "http://ollama.invalid");
+    CHECK(cfg.ollama.model == "llama3");
+    CHECK(cfg.ollama.api_key == "ollama-key");
     CHECK(cfg.parallelism == 3);
+
+    std::filesystem::remove_all(config_dir);
+}
+
+TEST_CASE("chat provider env switches selected provider without changing provider tables",
+          "[config]") {
+    auto config_dir = make_config_dir();
+    std::ofstream config{config_dir / "parallel-translation" / "config.toml"};
+    config << "[chat_api]\n"
+              "provider = \"ollama\"\n"
+              "\n"
+              "[ollama]\n"
+              "host = \"http://ollama.invalid\"\n"
+              "model = \"llama3\"\n"
+              "\n"
+              "[openrouter]\n"
+              "host = \"https://openrouter.invalid\"\n"
+              "model = \"google/gemma-4-31b-it\"\n"
+              "api_key = \"from-file\"\n";
+    config.close();
+
+    EnvVar xdg{"XDG_CONFIG_HOME", config_dir.c_str()};
+    EnvVar provider{"PT_CHAT_PROVIDER", "openrouter"};
+    EnvVar host{"PT_CHAT_HOST", nullptr};
+    EnvVar model{"PT_CHAT_MODEL", nullptr};
+    EnvVar key{"PT_CHAT_API_KEY", nullptr};
+
+    auto cfg = load_config();
+    const auto chat = selected_chat_api_config(cfg);
+
+    CHECK(cfg.chat_api_provider == "openrouter");
+    CHECK(chat.host == "https://openrouter.invalid");
+    CHECK(chat.model == "google/gemma-4-31b-it");
+    CHECK(chat.api_key == "from-file");
+    CHECK(cfg.ollama.host == "http://ollama.invalid");
 
     std::filesystem::remove_all(config_dir);
 }
@@ -128,18 +175,95 @@ TEST_CASE("defaults chat api host by provider", "[config]") {
     std::ofstream config{config_dir / "parallel-translation" / "config.toml"};
     config << "[chat_api]\n"
               "provider = \"openrouter\"\n"
-              "model = \"openai/gpt-4\"\n";
+              "\n"
+              "[openrouter]\n"
+              "model = \"google/gemma-4-31b-it\"\n";
     config.close();
 
     EnvVar xdg{"XDG_CONFIG_HOME", config_dir.c_str()};
+    EnvVar provider{"PT_CHAT_PROVIDER", nullptr};
     EnvVar host{"PT_CHAT_HOST", nullptr};
+    EnvVar model{"PT_CHAT_MODEL", nullptr};
+    EnvVar key{"PT_CHAT_API_KEY", nullptr};
 
     auto cfg = load_config();
+    const auto chat = selected_chat_api_config(cfg);
 
-    CHECK(cfg.chat_api.provider == "openrouter");
-    CHECK(cfg.chat_api.host == "https://openrouter.ai");
+    CHECK(cfg.chat_api_provider == "openrouter");
+    CHECK(chat.host == "https://openrouter.ai");
 
     std::filesystem::remove_all(config_dir);
+}
+
+TEST_CASE("legacy chat api fields are not provider config", "[config]") {
+    auto config_dir = make_config_dir();
+    std::ofstream config{config_dir / "parallel-translation" / "config.toml"};
+    config << "[chat_api]\n"
+              "provider = \"openrouter\"\n"
+              "host = \"https://legacy.invalid\"\n"
+              "model = \"legacy-model\"\n"
+              "api_key = \"legacy-key\"\n"
+              "\n"
+              "[openrouter]\n"
+              "model = \"google/gemma-4-31b-it\"\n";
+    config.close();
+
+    EnvVar xdg{"XDG_CONFIG_HOME", config_dir.c_str()};
+    EnvVar provider{"PT_CHAT_PROVIDER", nullptr};
+    EnvVar host{"PT_CHAT_HOST", nullptr};
+    EnvVar model{"PT_CHAT_MODEL", nullptr};
+    EnvVar key{"PT_CHAT_API_KEY", nullptr};
+
+    auto cfg = load_config();
+    const auto chat = selected_chat_api_config(cfg);
+
+    CHECK(chat.provider == "openrouter");
+    CHECK(chat.host == "https://openrouter.ai");
+    CHECK(chat.model == "google/gemma-4-31b-it");
+    CHECK(chat.api_key.empty());
+
+    std::filesystem::remove_all(config_dir);
+}
+
+TEST_CASE("ollama selected config preserves api key", "[config]") {
+    auto config_dir = make_config_dir();
+    std::ofstream config{config_dir / "parallel-translation" / "config.toml"};
+    config << "[chat_api]\n"
+              "provider = \"ollama\"\n"
+              "\n"
+              "[ollama]\n"
+              "host = \"http://ollama.invalid\"\n"
+              "model = \"llama3\"\n"
+              "api_key = \"ollama-secret\"\n";
+    config.close();
+
+    EnvVar xdg{"XDG_CONFIG_HOME", config_dir.c_str()};
+    EnvVar provider{"PT_CHAT_PROVIDER", nullptr};
+    EnvVar host{"PT_CHAT_HOST", nullptr};
+    EnvVar model{"PT_CHAT_MODEL", nullptr};
+    EnvVar key{"PT_CHAT_API_KEY", nullptr};
+
+    auto cfg = load_config();
+    const auto chat = selected_chat_api_config(cfg);
+
+    CHECK(chat.provider == "ollama");
+    CHECK(chat.host == "http://ollama.invalid");
+    CHECK(chat.model == "llama3");
+    CHECK(chat.api_key == "ollama-secret");
+
+    std::filesystem::remove_all(config_dir);
+}
+
+TEST_CASE("unknown chat provider is rejected without implicit config", "[config]") {
+    Config cfg;
+    cfg.chat_api_provider = "future-provider";
+
+    try {
+        (void)selected_chat_api_config(cfg);
+        FAIL("expected unknown provider to throw");
+    } catch (const std::runtime_error& e) {
+        CHECK(std::string{e.what()} == "chat-api: unknown provider: future-provider");
+    }
 }
 
 TEST_CASE("chat api ollama provider posts to ollama endpoint", "[translator]") {
@@ -179,7 +303,7 @@ TEST_CASE("chat api openrouter provider posts to chat completions with bearer au
             called = true;
             CHECK(req.get_header_value("Authorization") == "Bearer secret-key");
             auto body = nlohmann::json::parse(req.body);
-            CHECK(body["model"] == "openai/gpt-4");
+            CHECK(body["model"] == "google/gemma-4-31b-it");
             CHECK(body["stream"] == false);
             CHECK(body["messages"][1]["content"] == "Salve");
             res.set_content(R"({"choices":[{"message":{"content":"Hello"}}]})", "application/json");
@@ -189,7 +313,7 @@ TEST_CASE("chat api openrouter provider posts to chat completions with bearer au
     ChatApiConfig cfg;
     cfg.provider = "openrouter";
     cfg.host = test_server.host();
-    cfg.model = "openai/gpt-4";
+    cfg.model = "google/gemma-4-31b-it";
     cfg.api_key = "secret-key";
 
     auto translator = make_chat_api_latin_to_english_translator(cfg);
@@ -202,7 +326,7 @@ TEST_CASE("chat api openrouter requires an api key", "[translator]") {
     ChatApiConfig cfg;
     cfg.provider = "openrouter";
     cfg.host = "https://openrouter.ai";
-    cfg.model = "openai/gpt-4";
+    cfg.model = "google/gemma-4-31b-it";
 
     try {
         (void)make_chat_api_latin_to_english_translator(cfg);
@@ -210,6 +334,69 @@ TEST_CASE("chat api openrouter requires an api key", "[translator]") {
     } catch (const std::runtime_error& e) {
         CHECK(std::string{e.what()} == "chat-api: OpenRouter requires an API key");
     }
+}
+
+TEST_CASE("cli chat provider selects matching provider config before overrides", "[integration]") {
+    TestServer test_server;
+    std::atomic_bool called{false};
+
+    test_server.server().Post(
+        "/api/v1/chat/completions", [&](const httplib::Request& req, httplib::Response& res) {
+            called = true;
+            CHECK(req.get_header_value("Authorization") == "Bearer cli-key");
+            auto body = nlohmann::json::parse(req.body);
+            CHECK(body["model"] == "cli-model");
+            res.set_content(R"({"choices":[{"message":{"content":"Hello"}}]})", "application/json");
+        });
+    test_server.start();
+
+    auto config_dir = make_config_dir();
+    std::ofstream config{config_dir / "parallel-translation" / "config.toml"};
+    config << "[chat_api]\n"
+              "provider = \"ollama\"\n"
+              "\n"
+              "[ollama]\n"
+              "host = \"http://ollama.invalid\"\n"
+              "model = \"llama3\"\n"
+              "\n"
+              "[openrouter]\n"
+              "host = \"https://openrouter.invalid\"\n"
+              "model = \"google/gemma-4-31b-it\"\n"
+              "api_key = \"from-file\"\n";
+    config.close();
+
+    EnvVar xdg{"XDG_CONFIG_HOME", config_dir.c_str()};
+    EnvVar provider{"PT_CHAT_PROVIDER", nullptr};
+    EnvVar host{"PT_CHAT_HOST", nullptr};
+    EnvVar model{"PT_CHAT_MODEL", nullptr};
+    EnvVar key{"PT_CHAT_API_KEY", nullptr};
+
+    auto server_host = test_server.host();
+    const char* argv[] = {"app",
+                          "--backend",
+                          "chat-api",
+                          "--postprocess",
+                          "none",
+                          "--parallelism",
+                          "1",
+                          "--chat-provider",
+                          "openrouter",
+                          "--chat-host",
+                          server_host.c_str(),
+                          "--chat-model",
+                          "cli-model",
+                          "--chat-api-key",
+                          "cli-key",
+                          "-i",
+                          INPUT,
+                          "-o",
+                          OUTPUT};
+
+    CHECK(run(std::size(argv), const_cast<char**>(argv)) == 0);
+    CHECK(called);
+
+    std::remove(OUTPUT);
+    std::filesystem::remove_all(config_dir);
 }
 
 TEST_CASE("errors on non-existent input file", "[integration]") {

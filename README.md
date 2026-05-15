@@ -20,8 +20,15 @@ Example config:
 ```toml
 [chat_api]
 provider = "ollama"
+
+[ollama]
 host = "http://localhost:11434"
 model = "gemma3:27b"
+api_key = ""
+
+[openrouter]
+host = "https://openrouter.ai"
+model = "google/gemma-4-31b-it"
 api_key = ""
 
 [translation]
@@ -44,16 +51,24 @@ Environment variables override the config file:
 - `PT_LOG_LEVEL`
 - `PT_PARALLELISM`
 
-Command-line options for provider, model, host, API key, log level, and parallelism override config-derived values for one run.
+`PT_CHAT_PROVIDER` chooses which provider config is active. `PT_CHAT_HOST`,
+`PT_CHAT_MODEL`, and `PT_CHAT_API_KEY` override only that active provider.
+Provider tables are provider-specific schemas; future providers may not use the
+same fields.
 
-OpenRouter uses the same chat API settings:
+Command-line options for provider, model, host, API key, log level, and
+parallelism override config-derived values for one run. `--chat-provider`
+selects the active provider first, then `--chat-host`, `--chat-model`, and
+`--chat-api-key` apply to that provider.
+
+OpenRouter can be selected without changing `config.toml`:
 
 ```sh
 PT_CHAT_API_KEY=... parallel-translation \
   --input input.txt \
   --output output.txt \
   --chat-provider openrouter \
-  --chat-model openai/gpt-4
+  --chat-model google/gemma-4-31b-it
 ```
 
 The default OpenRouter host is `https://openrouter.ai`. Override it with
@@ -91,5 +106,5 @@ binary uses those private files and does not need the Conan cache at runtime.
 ```sh
 parallel-translation --input input.txt --output output.txt
 parallel-translation --input input.txt --output output.txt --postprocess none
-parallel-translation --input input.txt --output output.txt --chat-provider openrouter --chat-model openai/gpt-4
+parallel-translation --input input.txt --output output.txt --chat-provider openrouter --chat-model google/gemma-4-31b-it
 ```
