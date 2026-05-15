@@ -342,7 +342,7 @@ Disable postprocessing:
 parallel-translation --input input.txt --output output.txt --postprocess none
 ```
 
-Use Morpheus postprocessing with breves (morpheus-only flag; has no effect with other postprocessors):
+Use Morpheus postprocessing with breves:
 
 ```sh
 parallel-translation --input input.txt --output output.txt --postprocess morpheus --breves
