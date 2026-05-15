@@ -1,10 +1,7 @@
 #pragma once
+#include "config.hpp"
 #include "translator.hpp"
-#include <string>
 
-Translator
-make_ollama_latin_to_english_translator(const std::string& model,
-                                        const std::string& host = "http://localhost:11434");
+Translator make_chat_api_latin_to_english_translator(const ChatApiConfig& cfg);
 
-Translator make_ollama_macron_translator(const std::string& model,
-                                         const std::string& host = "http://localhost:11434");
+Translator make_chat_api_macron_translator(const ChatApiConfig& cfg);

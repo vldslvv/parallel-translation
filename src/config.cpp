@@ -6,6 +6,12 @@
 
 #include <spdlog/spdlog.h>
 
+static std::string default_chat_api_host(const std::string& provider) {
+    if (provider == "openrouter")
+        return "https://openrouter.ai";
+    return "http://localhost:11434";
+}
+
 static std::filesystem::path config_file_path() {
     const char* xdg = std::getenv("XDG_CONFIG_HOME");
     std::filesystem::path base = (xdg != nullptr && *xdg != '\0')
@@ -15,10 +21,14 @@ static std::filesystem::path config_file_path() {
 }
 
 static void apply_env(Config& cfg) {
-    if (const char* v = std::getenv("PT_OLLAMA_HOST"))
-        cfg.ollama_host = v;
-    if (const char* v = std::getenv("PT_OLLAMA_MODEL"))
-        cfg.ollama_model = v;
+    if (const char* v = std::getenv("PT_CHAT_PROVIDER"))
+        cfg.chat_api.provider = v;
+    if (const char* v = std::getenv("PT_CHAT_HOST"))
+        cfg.chat_api.host = v;
+    if (const char* v = std::getenv("PT_CHAT_MODEL"))
+        cfg.chat_api.model = v;
+    if (const char* v = std::getenv("PT_CHAT_API_KEY"))
+        cfg.chat_api.api_key = v;
     if (const char* v = std::getenv("PT_SOURCE_LANG"))
         cfg.source_lang = v;
     if (const char* v = std::getenv("PT_TARGET_LANG"))
@@ -41,10 +51,14 @@ Config load_config() {
     if (std::filesystem::exists(path)) {
         cfg.config_file = path.string();
         auto tbl = toml::parse_file(path.string());
-        if (auto v = tbl["ollama"]["host"].value<std::string>())
-            cfg.ollama_host = *v;
-        if (auto v = tbl["ollama"]["model"].value<std::string>())
-            cfg.ollama_model = *v;
+        if (auto v = tbl["chat_api"]["provider"].value<std::string>())
+            cfg.chat_api.provider = *v;
+        if (auto v = tbl["chat_api"]["host"].value<std::string>())
+            cfg.chat_api.host = *v;
+        if (auto v = tbl["chat_api"]["model"].value<std::string>())
+            cfg.chat_api.model = *v;
+        if (auto v = tbl["chat_api"]["api_key"].value<std::string>())
+            cfg.chat_api.api_key = *v;
         if (auto v = tbl["translation"]["source_lang"].value<std::string>())
             cfg.source_lang = *v;
         if (auto v = tbl["translation"]["target_lang"].value<std::string>())
@@ -56,5 +70,7 @@ Config load_config() {
     }
 
     apply_env(cfg);
+    if (cfg.chat_api.host.empty())
+        cfg.chat_api.host = default_chat_api_host(cfg.chat_api.provider);
     return cfg;
 }

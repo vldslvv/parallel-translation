@@ -25,6 +25,12 @@
 #include "writers/pdf.hpp"
 #include "writers/writer.hpp"
 
+static std::string default_chat_api_host(const std::string& provider) {
+    if (provider == "openrouter")
+        return "https://openrouter.ai";
+    return "http://localhost:11434";
+}
+
 static std::expected<Translator, int> get_translator(const std::string& backend,
                                                      const Config& cfg) {
     if (backend == "stub") {
@@ -33,8 +39,13 @@ static std::expected<Translator, int> get_translator(const std::string& backend,
     if (backend == "pass") {
         return pass_translator;
     }
-    if (backend == "ollama") {
-        return make_ollama_latin_to_english_translator(cfg.ollama_model, cfg.ollama_host);
+    if (backend == "chat-api") {
+        try {
+            return make_chat_api_latin_to_english_translator(cfg.chat_api);
+        } catch (const std::exception& e) {
+            spdlog::error("{}", e.what());
+            return std::unexpected(exit_code::usage_error);
+        }
     }
 
     spdlog::error("unknown backend: {}", backend);
@@ -140,40 +151,53 @@ int run(int argc, char* argv[]) {
 
     std::string input;
     std::string output;
-    std::string backend = "ollama";
+    std::string backend = "chat-api";
     std::string postprocess = "morpheus";
     bool breves = false;
+    std::string provider;
     std::string model;
     std::string host;
+    std::string api_key;
     std::string log_level;
     int parallelism = cfg.parallelism;
 
     app.add_option("--input,-i", input, "Input file path")->required();
     app.add_option("--output,-o", output, "Output file path")->required();
-    app.add_option("--backend", backend, "Translation backend: ollama, stub, pass")
+    app.add_option("--backend", backend, "Translation backend: chat-api, stub, pass")
         ->capture_default_str();
-    app.add_option("--postprocess", postprocess,
-                   "Macron postprocessor: morpheus, ollama, none")
+    app.add_option("--postprocess", postprocess, "Macron postprocessor: morpheus, chat-api, none")
         ->capture_default_str();
     app.add_flag("--breves", breves, "Mark short vowels with a breve (morpheus only)");
-    app.add_option("--ollama-model", model, "Ollama model name (overrides config)");
-    app.add_option("--ollama-host", host, "Ollama host URL (overrides config)");
+    auto* provider_opt =
+        app.add_option("--chat-provider", provider, "Chat API provider: ollama, openrouter");
+    auto* host_opt = app.add_option("--chat-host", host, "Chat API host URL (overrides config)");
+    app.add_option("--chat-model", model, "Chat API model name (overrides config)");
+    app.add_option("--chat-api-key", api_key, "Chat API key (overrides config)");
     app.add_option("--log-level", log_level, "Log level: trace/debug/info/warn/error/critical/off");
     app.add_option("--parallelism", parallelism, "Max concurrent translations")
         ->capture_default_str();
 
     CLI11_PARSE(app, argc, argv);
 
+    if (!provider.empty())
+        cfg.chat_api.provider = provider;
+    if (provider_opt->count() > 0 && host_opt->count() == 0)
+        cfg.chat_api.host = default_chat_api_host(cfg.chat_api.provider);
     if (!model.empty())
-        cfg.ollama_model = model;
+        cfg.chat_api.model = model;
     if (!host.empty())
-        cfg.ollama_host = host;
+        cfg.chat_api.host = host;
+    if (!api_key.empty())
+        cfg.chat_api.api_key = api_key;
     if (!log_level.empty())
         cfg.log_level = log_level;
     spdlog::set_level(spdlog::level::from_str(cfg.log_level));
     spdlog::debug("config: file={}", cfg.config_file.empty() ? "(none)" : cfg.config_file);
-    spdlog::debug("config: ollama_host={}", cfg.ollama_host);
-    spdlog::debug("config: ollama_model={}", cfg.ollama_model);
+    spdlog::debug("config: chat_api_provider={}", cfg.chat_api.provider);
+    spdlog::debug("config: chat_api_host={}", cfg.chat_api.host);
+    spdlog::debug("config: chat_api_model={}", cfg.chat_api.model);
+    spdlog::debug("config: chat_api_api_key={}",
+                  cfg.chat_api.api_key.empty() ? "(empty)" : "(set)");
     spdlog::debug("config: source_lang={}", cfg.source_lang);
     spdlog::debug("config: target_lang={}", cfg.target_lang);
     spdlog::debug("config: log_level={}", cfg.log_level);
@@ -195,10 +219,18 @@ int run(int argc, char* argv[]) {
     Translator postprocessor;
     if (postprocess == "morpheus") {
         postprocessor = make_morpheus_macron_translator(breves);
-    } else if (postprocess == "ollama") {
-        postprocessor = make_ollama_macron_translator(cfg.ollama_model, cfg.ollama_host);
-    } else {
+    } else if (postprocess == "chat-api") {
+        try {
+            postprocessor = make_chat_api_macron_translator(cfg.chat_api);
+        } catch (const std::exception& e) {
+            spdlog::error("{}", e.what());
+            return exit_code::usage_error;
+        }
+    } else if (postprocess == "none") {
         postprocessor = pass_translator;
+    } else {
+        spdlog::error("unknown postprocessor: {}", postprocess);
+        return exit_code::usage_error;
     }
 
     if (ext == ".txt") {

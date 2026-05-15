@@ -182,24 +182,27 @@ If not installing, run the built binary directly:
 
 ## Translation Backend
 
-The default backend is `ollama`. Treat Ollama as an external service owned
-outside this system. Do not install, start, stop, restart, configure, or pull
-models with Ollama while using this skill. Only point `parallel-translation` at
-an already available Ollama endpoint and selected model.
+The default backend is `chat-api` with `--chat-provider ollama`. Treat chat API
+providers as external services owned outside this system. Do not install, start,
+stop, restart, configure, or pull models while using this skill. Only point
+`parallel-translation` at an already available endpoint and selected model.
 
 Defaults:
 
-- Ollama host: `http://localhost:11434`
-- Ollama model: `gemma3:27b`
+- Chat provider: `ollama`
+- Chat host: `http://localhost:11434`
+- Chat model: `gemma3:27b`
+- OpenRouter default host: `https://openrouter.ai`
 
-Check backend reachability before long jobs:
+Check local Ollama reachability before long jobs:
 
 ```sh
 curl http://localhost:11434/api/tags
 ```
 
-If the selected model is missing or the server is unreachable, report that
-Ollama is not ready and ask the user or the external Ollama operator to make the
+For OpenRouter, require an API key via `PT_CHAT_API_KEY` or `--chat-api-key`.
+If the selected model is missing or the provider is unreachable, report that the
+chat API provider is not ready and ask the user or provider operator to make the
 service/model available. Do not remediate it from this skill.
 
 For smoke tests that must not call an LLM or Morpheus, use:
@@ -214,7 +217,7 @@ The `pass` backend copies input text as the translation. This verifies paths, ou
 
 | Backend | Command | Description |
 |---|---|---|
-| `ollama` (default) | `--backend ollama` | Calls configured Ollama API for real LLM translation |
+| `chat-api` (default) | `--backend chat-api` | Calls the configured chat API provider for real LLM translation |
 | `pass` | `--backend pass` | Copies input as "translation" — good for smoke tests |
 | `stub` | `--backend stub` | Replaces every word with `Stub` — good for pipeline testing |
 
@@ -222,7 +225,7 @@ The `pass` backend copies input text as the translation. This verifies paths, ou
 |---|---|---|
 | `morpheus` (default) | `--postprocess morpheus` | Adds Latin macrons via vendored Morpheus engine |
 | `morpheus` + breves | `--postprocess morpheus --breves` | Morpheus with breve marks for short vowels |
-| `ollama` | `--postprocess ollama` | Uses Ollama LLM for macron insertion |
+| `chat-api` | `--postprocess chat-api` | Uses the configured chat API provider for macron insertion |
 | `none` | `--postprocess none` | Skip postprocessing entirely |
 
 ## CLI Reference
@@ -246,9 +249,11 @@ $HOME/.config/parallel-translation/config.toml
 Example config:
 
 ```toml
-[ollama]
+[chat_api]
+provider = "ollama"
 host = "http://localhost:11434"
 model = "gemma3:27b"
+api_key = ""
 
 [translation]
 source_lang = "la"
@@ -261,14 +266,16 @@ level = "warn"
 
 Environment variables override the config file:
 
-- `PT_OLLAMA_HOST`
-- `PT_OLLAMA_MODEL`
+- `PT_CHAT_PROVIDER`
+- `PT_CHAT_HOST`
+- `PT_CHAT_MODEL`
+- `PT_CHAT_API_KEY`
 - `PT_SOURCE_LANG`
 - `PT_TARGET_LANG`
 - `PT_LOG_LEVEL`
 - `PT_PARALLELISM`
 
-Command-line options for model, host, log level, and parallelism override config-derived values for one run.
+Command-line options for provider, model, host, API key, log level, and parallelism override config-derived values for one run.
 
 Morpheus postprocessing uses the vendored Morpheus Conan recipe at the version
 defined in `conanfile.py`. No Morpheus directory configuration is supported.
@@ -320,13 +327,19 @@ parallel-translation --input input.pdf --output output.txt
 Specific model:
 
 ```sh
-parallel-translation --input input.txt --output output.txt --ollama-model gemma3:27
+parallel-translation --input input.txt --output output.txt --chat-model gemma3:27
 ```
 
 Specific host:
 
 ```sh
-parallel-translation --input input.txt --output output.txt --ollama-host http://localhost:11434
+parallel-translation --input input.txt --output output.txt --chat-host http://localhost:11434
+```
+
+OpenRouter:
+
+```sh
+PT_CHAT_API_KEY=... parallel-translation --input input.txt --output output.txt --chat-provider openrouter --chat-model openai/gpt-4
 ```
 
 Set concurrency. Use `--parallelism 1` unless the user explicitly instructs a
@@ -357,7 +370,7 @@ Before a real job:
 3. Confirm the input file extension is `.txt` or `.pdf`; this selects the input format.
 4. Confirm the output path extension is `.txt` or `.pdf`; this selects the output format.
 5. Avoid overwriting important output files unless explicitly requested.
-6. If using Ollama, confirm the external server is reachable and the model is available.
+6. If using a chat API provider, confirm the external server is reachable, the model is available, and OpenRouter has an API key.
 7. Run a smoke test with `--backend pass --postprocess none`.
 8. Run the real job with `--parallelism 1` unless the user explicitly instructs a different value.
 9. Treat any nonzero exit code as failure and inspect logs/output.
@@ -372,7 +385,7 @@ Common failure causes:
 - Input file cannot be read
 - Output file cannot be opened
 - Unknown backend
-- Ollama is unreachable
+- Chat API provider is unreachable
 - Selected model is unavailable
 - Translation backend failed
 - Parallelism is above the program maximum
@@ -382,7 +395,7 @@ If a job fails:
 1. Re-run with `--log-level debug`.
 2. Reduce `--parallelism` to `1`.
 3. Verify input and output paths.
-4. Check Ollama reachability and model availability.
+4. Check chat API provider reachability, model availability, and API key configuration.
 5. Try `--backend pass --postprocess none` to isolate file handling from LLM behavior.
 
 ## Exit Codes
@@ -396,7 +409,7 @@ The program uses these exit codes — useful for autonomous agents interpreting 
 | `2` | `usage_error` | Invalid CLI arguments (unknown backend, unsupported extension, parallelism too high) |
 | `3` | `input_error` | Input file could not be read or parsed |
 | `4` | `output_error` | Output file could not be opened or written |
-| `5` | `backend_unavailable` | Translation backend (e.g. Ollama) is unreachable |
+| `5` | `backend_unavailable` | Translation backend is unreachable |
 
 A nonzero exit code should always be treated as failure — inspect stderr logs with `--log-level debug` for details.
 
@@ -404,7 +417,7 @@ A nonzero exit code should always be treated as failure — inspect stderr logs 
 
 - Use absolute paths from automation.
 - Keep Python tools in `pipx` or a project virtual environment.
-- Use `--parallelism 1` for Ollama-backed jobs unless instructed otherwise.
+- Use `--parallelism 1` for chat-api-backed jobs unless instructed otherwise.
 - Do not overwrite existing outputs without explicit permission.
 - Prefer smoke tests before real translation.
 - Manually inspect PDF output when possible; PDF formatting depends on document structure.

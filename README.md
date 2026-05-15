@@ -18,9 +18,11 @@ $HOME/.config/parallel-translation/config.toml
 Example config:
 
 ```toml
-[ollama]
+[chat_api]
+provider = "ollama"
 host = "http://localhost:11434"
 model = "gemma3:27b"
+api_key = ""
 
 [translation]
 source_lang = "la"
@@ -33,14 +35,29 @@ level = "warn"
 
 Environment variables override the config file:
 
-- `PT_OLLAMA_HOST`
-- `PT_OLLAMA_MODEL`
+- `PT_CHAT_PROVIDER`
+- `PT_CHAT_HOST`
+- `PT_CHAT_MODEL`
+- `PT_CHAT_API_KEY`
 - `PT_SOURCE_LANG`
 - `PT_TARGET_LANG`
 - `PT_LOG_LEVEL`
 - `PT_PARALLELISM`
 
-Command-line options for model, host, log level, and parallelism override config-derived values for one run.
+Command-line options for provider, model, host, API key, log level, and parallelism override config-derived values for one run.
+
+OpenRouter uses the same chat API settings:
+
+```sh
+PT_CHAT_API_KEY=... parallel-translation \
+  --input input.txt \
+  --output output.txt \
+  --chat-provider openrouter \
+  --chat-model openai/gpt-4
+```
+
+The default OpenRouter host is `https://openrouter.ai`. Override it with
+`--chat-host` or `PT_CHAT_HOST` only when using a compatible proxy.
 
 Morpheus postprocessing uses the vendored Morpheus Conan recipe. The Makefile
 exports that recipe at the version defined in `conanfile.py` before installing
@@ -74,4 +91,5 @@ binary uses those private files and does not need the Conan cache at runtime.
 ```sh
 parallel-translation --input input.txt --output output.txt
 parallel-translation --input input.txt --output output.txt --postprocess none
+parallel-translation --input input.txt --output output.txt --chat-provider openrouter --chat-model openai/gpt-4
 ```

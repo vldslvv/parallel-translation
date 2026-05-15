@@ -7,6 +7,9 @@ MORPHEUS_VERSION = "0.0.3"
 class ParallelTranslation(ConanFile):
     settings = "os", "compiler", "build_type", "arch"
     generators = "CMakeToolchain", "CMakeDeps"
+    default_options = {
+        "cpp-httplib/*:with_openssl": True,
+    }
 
     def requirements(self):
         self.requires("cli11/2.4.2")
