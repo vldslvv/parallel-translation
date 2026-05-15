@@ -7,6 +7,20 @@ description: Use this skill when an autonomous agent needs to install, configure
 
 Use this skill to run the `parallel-translation` CLI. Focus on prerequisites, installation, backend health, configuration, and reliable translation jobs. Do not use this as a development guide.
 
+Before any Conan or build commands, activate the project's dedicated Conan virtual environment:
+
+```sh
+. /workspace/translations/.venv-conan/bin/activate
+```
+
+If the venv doesn't exist, create it (one-time):
+```sh
+python3 -m venv /workspace/translations/.venv-conan
+. /workspace/translations/.venv-conan/bin/activate
+pip install --upgrade pip
+pip install conan
+```
+
 ## What The Tool Does
 
 `parallel-translation` creates parallel translations from an input file to an output file.
@@ -65,10 +79,13 @@ Check it with:
 conan profile show -pr default
 ```
 
-If needed, update the default profile:
+If needed, update the default profile. **In Conan v2, there is no `conan profile update` command.** Edit the profile file directly:
 
 ```sh
-conan profile update settings.compiler.cppstd=23 default
+# Find the profile path:
+conan profile path  # typically ~/.conan2/profiles/default
+# Then edit compiler.cppstd:
+# Change: compiler.cppstd=gnu17  →  compiler.cppstd=23
 ```
 
 Install Conan in an isolated Python environment. Preferred:
@@ -128,6 +145,17 @@ cooling and swap and remains responsive during compilation.
 If compilation fails or the system becomes unresponsive, retry with
 `CMAKE_BUILD_PARALLEL_LEVEL=1`.
 
+**ARM / RPi first-build timeout warning:** When using a non-default C++ standard (e.g. C++23 on a custom profile), Conan has no pre-built binaries for ARM64 and compiles all dependencies (poppler, freetype, spdlog, pdf-writer, etc.) from source. This takes **10+ minutes** and will exceed the default 600-second foreground timeout on most agent hosts. Always start the initial build with `background=true` + `notify_on_complete=true`:
+
+```sh
+# Instead of running make directly in foreground:
+#   CMAKE_BUILD_PARALLEL_LEVEL=2 make release
+# Use background mode with notification:
+make release  # in a terminal with background=true, notify_on_complete=true, timeout=3600
+```
+
+If the build times out, retry — Conan caches already-built packages, so subsequent attempts skip those and are much faster. Partial builds are **not** resumed from the middle; you start each Conan package from scratch on retry, but already-built packages are cached.
+
 Install the release binary to the default prefix:
 
 ```sh
@@ -181,6 +209,25 @@ For smoke tests that must not call an LLM or Morpheus, use:
 ```
 
 The `pass` backend copies input text as the translation. This verifies paths, output format, and basic execution.
+
+## Backend & Postprocessor Reference
+
+| Backend | Command | Description |
+|---|---|---|
+| `ollama` (default) | `--backend ollama` | Calls configured Ollama API for real LLM translation |
+| `pass` | `--backend pass` | Copies input as "translation" — good for smoke tests |
+| `stub` | `--backend stub` | Replaces every word with `Stub` — good for pipeline testing |
+
+| Postprocessor | Command | Description |
+|---|---|---|
+| `morpheus` (default) | `--postprocess morpheus` | Adds Latin macrons via vendored Morpheus engine |
+| `morpheus` + breves | `--postprocess morpheus --breves` | Morpheus with breve marks for short vowels |
+| `ollama` | `--postprocess ollama` | Uses Ollama LLM for macron insertion |
+| `none` | `--postprocess none` | Skip postprocessing entirely |
+
+## CLI Reference
+
+The binary supports `--version` / `-v` to print the current version and exit.
 
 ## Configuration
 
@@ -295,7 +342,7 @@ Disable postprocessing:
 parallel-translation --input input.txt --output output.txt --postprocess none
 ```
 
-Use Morpheus postprocessing with breves:
+Use Morpheus postprocessing with breves (morpheus-only flag; has no effect with other postprocessors):
 
 ```sh
 parallel-translation --input input.txt --output output.txt --postprocess morpheus --breves
@@ -337,6 +384,21 @@ If a job fails:
 3. Verify input and output paths.
 4. Check Ollama reachability and model availability.
 5. Try `--backend pass --postprocess none` to isolate file handling from LLM behavior.
+
+## Exit Codes
+
+The program uses these exit codes — useful for autonomous agents interpreting failures:
+
+| Code | Name | Meaning |
+|---|---|---|
+| `0` | `success` | Translation completed successfully |
+| `1` | `runtime_error` | Translation or postprocessing failed mid-run |
+| `2` | `usage_error` | Invalid CLI arguments (unknown backend, unsupported extension, parallelism too high) |
+| `3` | `input_error` | Input file could not be read or parsed |
+| `4` | `output_error` | Output file could not be opened or written |
+| `5` | `backend_unavailable` | Translation backend (e.g. Ollama) is unreachable |
+
+A nonzero exit code should always be treated as failure — inspect stderr logs with `--log-level debug` for details.
 
 ## Operational Safety
 
