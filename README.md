@@ -18,23 +18,34 @@ $HOME/.config/parallel-translation/config.toml
 Example config:
 
 ```toml
-[chat_api]
+[reader]
+path = "input.txt"
+
+[postprocessing]
+provider = "morpheus"
+breves = false
+
+[backend]
+provider = "chat-api"
+source_lang = "la"
+target_lang = "en"
+parallelism = 1
+
+[backend.chat_api]
 provider = "ollama"
 
-[ollama]
+[backend.chat_api.ollama]
 host = "http://localhost:11434"
 model = "gemma3:27b"
 api_key = ""
 
-[openrouter]
+[backend.chat_api.openrouter]
 host = "https://openrouter.ai"
 model = "google/gemma-4-31b-it"
 api_key = ""
 
-[translation]
-source_lang = "la"
-target_lang = "en"
-parallelism = 1
+[writer]
+path = "output.txt"
 
 [log]
 level = "warn"
@@ -42,37 +53,45 @@ level = "warn"
 
 Environment variables override the config file:
 
-- `PT_CHAT_PROVIDER`
-- `PT_CHAT_HOST`
-- `PT_CHAT_MODEL`
-- `PT_CHAT_API_KEY`
-- `PT_SOURCE_LANG`
-- `PT_TARGET_LANG`
+- `PT_READER_PATH`
+- `PT_WRITER_PATH`
+- `PT_BACKEND_PROVIDER`
+- `PT_BACKEND_CHAT_PROVIDER`
+- `PT_BACKEND_CHAT_HOST`
+- `PT_BACKEND_CHAT_MODEL`
+- `PT_BACKEND_CHAT_API_KEY`
+- `PT_BACKEND_SOURCE_LANG`
+- `PT_BACKEND_TARGET_LANG`
+- `PT_BACKEND_PARALLELISM`
+- `PT_POSTPROCESSOR_PROVIDER`
+- `PT_POSTPROCESSOR_BREVES`
 - `PT_LOG_LEVEL`
-- `PT_PARALLELISM`
 
-`PT_CHAT_PROVIDER` chooses which provider config is active. `PT_CHAT_HOST`,
-`PT_CHAT_MODEL`, and `PT_CHAT_API_KEY` override only that active provider.
+`PT_BACKEND_CHAT_PROVIDER` chooses which chat API provider config is active.
+`PT_BACKEND_CHAT_HOST`, `PT_BACKEND_CHAT_MODEL`, and
+`PT_BACKEND_CHAT_API_KEY` override only that active provider.
 The app derives the provider's API style and endpoint path internally; users
 only configure host, model, and API key.
 
 Command-line options for provider, model, host, API key, log level, and
-parallelism override config-derived values for one run. `--chat-provider`
-selects the active provider first, then `--chat-host`, `--chat-model`, and
-`--chat-api-key` apply to that provider.
+parallelism override config-derived values for one run.
+`--backend-chat-provider` selects the active provider first, then
+`--backend-chat-host`, `--backend-chat-model`, and `--backend-chat-api-key`
+apply to that provider.
 
 OpenRouter can be selected without changing `config.toml`:
 
 ```sh
-PT_CHAT_API_KEY=... parallel-translation \
-  --input input.txt \
-  --output output.txt \
-  --chat-provider openrouter \
-  --chat-model google/gemma-4-31b-it
+PT_BACKEND_CHAT_API_KEY=... parallel-translation \
+  --reader-path input.txt \
+  --writer-path output.txt \
+  --backend-chat-provider openrouter \
+  --backend-chat-model google/gemma-4-31b-it
 ```
 
 The default OpenRouter host is `https://openrouter.ai`. Override it with
-`--chat-host` or `PT_CHAT_HOST` only when using a compatible proxy.
+`--backend-chat-host` or `PT_BACKEND_CHAT_HOST` only when using a compatible
+proxy.
 
 Morpheus postprocessing uses the vendored Morpheus Conan recipe. The Makefile
 exports that recipe at the version defined in `conanfile.py` before installing
@@ -104,7 +123,7 @@ binary uses those private files and does not need the Conan cache at runtime.
 ## Examples
 
 ```sh
-parallel-translation --input input.txt --output output.txt
-parallel-translation --input input.txt --output output.txt --postprocess none
-parallel-translation --input input.txt --output output.txt --chat-provider openrouter --chat-model google/gemma-4-31b-it
+parallel-translation --reader-path input.txt --writer-path output.txt
+parallel-translation --reader-path input.txt --writer-path output.txt --postprocessor-provider none
+parallel-translation --reader-path input.txt --writer-path output.txt --backend-chat-provider openrouter --backend-chat-model google/gemma-4-31b-it
 ```

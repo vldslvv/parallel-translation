@@ -81,15 +81,16 @@ static std::filesystem::path make_config_dir() {
 }
 
 static Config get_test_config() {
-    const char* argv[] = {"app", "-i", INPUT, "-o", OUTPUT};
+    const char* argv[] = {"app", "--reader-path", INPUT, "--writer-path", OUTPUT};
     auto parsed = get_config(std::size(argv), const_cast<char**>(argv));
     REQUIRE(parsed.has_value());
     return std::move(parsed).value();
 }
 
 TEST_CASE("translates input file to output file", "[integration]") {
-    const char* argv[] = {"app", "--backend", "stub", "--postprocess", "none",
-                          "-i",  INPUT,       "-o",   OUTPUT};
+    const char* argv[] = {"app",  "--backend-provider", "stub", "--postprocessor-provider",
+                          "none", "--reader-path",      INPUT,  "--writer-path",
+                          OUTPUT};
 
     CHECK(run(std::size(argv), const_cast<char**>(argv)) == 0);
 
@@ -104,31 +105,31 @@ TEST_CASE("translates input file to output file", "[integration]") {
 TEST_CASE("loads provider-specific chat api config from toml and env", "[config]") {
     auto config_dir = make_config_dir();
     std::ofstream config{config_dir / "parallel-translation" / "config.toml"};
-    config << "[chat_api]\n"
+    config << "[backend]\n"
+              "parallelism = 3\n"
+              "\n"
+              "[backend.chat_api]\n"
               "provider = \"openrouter\"\n"
               "\n"
-              "[ollama]\n"
+              "[backend.chat_api.ollama]\n"
               "host = \"http://ollama.invalid\"\n"
               "model = \"llama3\"\n"
               "api_key = \"ollama-key\"\n"
               "\n"
-              "[openrouter]\n"
+              "[backend.chat_api.openrouter]\n"
               "host = \"https://openrouter.invalid\"\n"
               "model = \"anthropic/claude-sonnet-4\"\n"
-              "api_key = \"from-file\"\n"
-              "\n"
-              "[translation]\n"
-              "parallelism = 3\n";
+              "api_key = \"from-file\"\n";
     config.close();
 
     EnvVar xdg{"XDG_CONFIG_HOME", config_dir.c_str()};
-    EnvVar provider{"PT_CHAT_PROVIDER", nullptr};
-    EnvVar host{"PT_CHAT_HOST", nullptr};
-    EnvVar model{"PT_CHAT_MODEL", "openai/gpt-4o-mini"};
-    EnvVar key{"PT_CHAT_API_KEY", "from-env"};
+    EnvVar provider{"PT_BACKEND_CHAT_PROVIDER", nullptr};
+    EnvVar host{"PT_BACKEND_CHAT_HOST", nullptr};
+    EnvVar model{"PT_BACKEND_CHAT_MODEL", "openai/gpt-4o-mini"};
+    EnvVar key{"PT_BACKEND_CHAT_API_KEY", "from-env"};
 
     auto cfg = get_test_config();
-    const auto& chat = cfg.chat_api;
+    const auto& chat = cfg.backend.chat_api;
 
     CHECK(chat.provider == "openrouter");
     CHECK(chat.host == "https://openrouter.invalid");
@@ -136,7 +137,11 @@ TEST_CASE("loads provider-specific chat api config from toml and env", "[config]
     CHECK(chat.api_key == "from-env");
     CHECK(chat.api_style == "openai-chat-completions");
     CHECK(chat.endpoint_path == "/api/v1/chat/completions");
-    CHECK(cfg.parallelism == 3);
+    CHECK(cfg.backend.parallelism == 3);
+    CHECK(cfg.reader.path == INPUT);
+    CHECK(cfg.reader.format == "txt");
+    CHECK(cfg.writer.path == OUTPUT);
+    CHECK(cfg.writer.format == "txt");
 
     std::filesystem::remove_all(config_dir);
 }
@@ -145,27 +150,27 @@ TEST_CASE("chat provider env switches selected provider without changing provide
           "[config]") {
     auto config_dir = make_config_dir();
     std::ofstream config{config_dir / "parallel-translation" / "config.toml"};
-    config << "[chat_api]\n"
+    config << "[backend.chat_api]\n"
               "provider = \"ollama\"\n"
               "\n"
-              "[ollama]\n"
+              "[backend.chat_api.ollama]\n"
               "host = \"http://ollama.invalid\"\n"
               "model = \"llama3\"\n"
               "\n"
-              "[openrouter]\n"
+              "[backend.chat_api.openrouter]\n"
               "host = \"https://openrouter.invalid\"\n"
               "model = \"google/gemma-4-31b-it\"\n"
               "api_key = \"from-file\"\n";
     config.close();
 
     EnvVar xdg{"XDG_CONFIG_HOME", config_dir.c_str()};
-    EnvVar provider{"PT_CHAT_PROVIDER", "openrouter"};
-    EnvVar host{"PT_CHAT_HOST", nullptr};
-    EnvVar model{"PT_CHAT_MODEL", nullptr};
-    EnvVar key{"PT_CHAT_API_KEY", nullptr};
+    EnvVar provider{"PT_BACKEND_CHAT_PROVIDER", "openrouter"};
+    EnvVar host{"PT_BACKEND_CHAT_HOST", nullptr};
+    EnvVar model{"PT_BACKEND_CHAT_MODEL", nullptr};
+    EnvVar key{"PT_BACKEND_CHAT_API_KEY", nullptr};
 
     auto cfg = get_test_config();
-    const auto& chat = cfg.chat_api;
+    const auto& chat = cfg.backend.chat_api;
 
     CHECK(chat.provider == "openrouter");
     CHECK(chat.host == "https://openrouter.invalid");
@@ -180,21 +185,21 @@ TEST_CASE("chat provider env switches selected provider without changing provide
 TEST_CASE("defaults chat api host by provider", "[config]") {
     auto config_dir = make_config_dir();
     std::ofstream config{config_dir / "parallel-translation" / "config.toml"};
-    config << "[chat_api]\n"
+    config << "[backend.chat_api]\n"
               "provider = \"openrouter\"\n"
               "\n"
-              "[openrouter]\n"
+              "[backend.chat_api.openrouter]\n"
               "model = \"google/gemma-4-31b-it\"\n";
     config.close();
 
     EnvVar xdg{"XDG_CONFIG_HOME", config_dir.c_str()};
-    EnvVar provider{"PT_CHAT_PROVIDER", nullptr};
-    EnvVar host{"PT_CHAT_HOST", nullptr};
-    EnvVar model{"PT_CHAT_MODEL", nullptr};
-    EnvVar key{"PT_CHAT_API_KEY", nullptr};
+    EnvVar provider{"PT_BACKEND_CHAT_PROVIDER", nullptr};
+    EnvVar host{"PT_BACKEND_CHAT_HOST", nullptr};
+    EnvVar model{"PT_BACKEND_CHAT_MODEL", nullptr};
+    EnvVar key{"PT_BACKEND_CHAT_API_KEY", nullptr};
 
     auto cfg = get_test_config();
-    const auto& chat = cfg.chat_api;
+    const auto& chat = cfg.backend.chat_api;
 
     CHECK(chat.provider == "openrouter");
     CHECK(chat.host == "https://openrouter.ai");
@@ -202,26 +207,11 @@ TEST_CASE("defaults chat api host by provider", "[config]") {
     std::filesystem::remove_all(config_dir);
 }
 
-TEST_CASE("legacy chat api fields are rejected", "[config]") {
+TEST_CASE("unsupported reader extension is rejected", "[config]") {
     auto config_dir = make_config_dir();
-    std::ofstream config{config_dir / "parallel-translation" / "config.toml"};
-    config << "[chat_api]\n"
-              "provider = \"openrouter\"\n"
-              "host = \"https://legacy.invalid\"\n"
-              "model = \"legacy-model\"\n"
-              "api_key = \"legacy-key\"\n"
-              "\n"
-              "[openrouter]\n"
-              "model = \"google/gemma-4-31b-it\"\n";
-    config.close();
-
     EnvVar xdg{"XDG_CONFIG_HOME", config_dir.c_str()};
-    EnvVar provider{"PT_CHAT_PROVIDER", nullptr};
-    EnvVar host{"PT_CHAT_HOST", nullptr};
-    EnvVar model{"PT_CHAT_MODEL", nullptr};
-    EnvVar key{"PT_CHAT_API_KEY", nullptr};
 
-    const char* argv[] = {"app", "-i", INPUT, "-o", OUTPUT};
+    const char* argv[] = {"app", "--reader-path", "input.epub", "--writer-path", OUTPUT};
     auto parsed = get_config(std::size(argv), const_cast<char**>(argv));
 
     CHECK(!parsed);
@@ -233,13 +223,13 @@ TEST_CASE("legacy chat api fields are rejected", "[config]") {
 TEST_CASE("invalid toml config is rejected", "[config]") {
     auto config_dir = make_config_dir();
     std::ofstream config{config_dir / "parallel-translation" / "config.toml"};
-    config << "[chat_api\n"
+    config << "[backend.chat_api\n"
               "provider = \"openrouter\"\n";
     config.close();
 
     EnvVar xdg{"XDG_CONFIG_HOME", config_dir.c_str()};
 
-    const char* argv[] = {"app", "-i", INPUT, "-o", OUTPUT};
+    const char* argv[] = {"app", "--reader-path", INPUT, "--writer-path", OUTPUT};
     auto parsed = get_config(std::size(argv), const_cast<char**>(argv));
 
     CHECK(!parsed);
@@ -252,35 +242,62 @@ TEST_CASE("missing config home falls back to defaults", "[config]") {
     EnvVar xdg{"XDG_CONFIG_HOME", nullptr};
     EnvVar home{"HOME", nullptr};
 
-    const char* argv[] = {"app", "-i", INPUT, "-o", OUTPUT};
+    const char* argv[] = {"app", "--reader-path", INPUT, "--writer-path", OUTPUT};
     auto parsed = get_config(std::size(argv), const_cast<char**>(argv));
     REQUIRE(parsed);
 
-    CHECK(parsed->chat_api.provider == "ollama");
-    CHECK(parsed->chat_api.host == "http://localhost:11434");
-    CHECK(parsed->config_file.empty());
+    CHECK(parsed->backend.chat_api.provider == "ollama");
+    CHECK(parsed->backend.chat_api.host == "http://localhost:11434");
+    CHECK(parsed->reader.path == INPUT);
+    CHECK(parsed->reader.format == "txt");
+    CHECK(parsed->writer.path == OUTPUT);
+    CHECK(parsed->writer.format == "txt");
+}
+
+TEST_CASE("reader and writer paths from config resolve formats", "[config]") {
+    auto config_dir = make_config_dir();
+    std::ofstream config{config_dir / "parallel-translation" / "config.toml"};
+    config << "[reader]\n"
+              "path = \"book.pdf\"\n"
+              "\n"
+              "[writer]\n"
+              "path = \"parallel.pdf\"\n";
+    config.close();
+
+    EnvVar xdg{"XDG_CONFIG_HOME", config_dir.c_str()};
+
+    const char* argv[] = {"app"};
+    auto parsed = get_config(std::size(argv), const_cast<char**>(argv));
+    REQUIRE(parsed);
+
+    CHECK(parsed->reader.path == "book.pdf");
+    CHECK(parsed->reader.format == "pdf");
+    CHECK(parsed->writer.path == "parallel.pdf");
+    CHECK(parsed->writer.format == "pdf");
+
+    std::filesystem::remove_all(config_dir);
 }
 
 TEST_CASE("ollama selected config preserves api key", "[config]") {
     auto config_dir = make_config_dir();
     std::ofstream config{config_dir / "parallel-translation" / "config.toml"};
-    config << "[chat_api]\n"
+    config << "[backend.chat_api]\n"
               "provider = \"ollama\"\n"
               "\n"
-              "[ollama]\n"
+              "[backend.chat_api.ollama]\n"
               "host = \"http://ollama.invalid\"\n"
               "model = \"llama3\"\n"
               "api_key = \"ollama-secret\"\n";
     config.close();
 
     EnvVar xdg{"XDG_CONFIG_HOME", config_dir.c_str()};
-    EnvVar provider{"PT_CHAT_PROVIDER", nullptr};
-    EnvVar host{"PT_CHAT_HOST", nullptr};
-    EnvVar model{"PT_CHAT_MODEL", nullptr};
-    EnvVar key{"PT_CHAT_API_KEY", nullptr};
+    EnvVar provider{"PT_BACKEND_CHAT_PROVIDER", nullptr};
+    EnvVar host{"PT_BACKEND_CHAT_HOST", nullptr};
+    EnvVar model{"PT_BACKEND_CHAT_MODEL", nullptr};
+    EnvVar key{"PT_BACKEND_CHAT_API_KEY", nullptr};
 
     auto cfg = get_test_config();
-    const auto& chat = cfg.chat_api;
+    const auto& chat = cfg.backend.chat_api;
 
     CHECK(chat.provider == "ollama");
     CHECK(chat.host == "http://ollama.invalid");
@@ -293,9 +310,9 @@ TEST_CASE("ollama selected config preserves api key", "[config]") {
 }
 
 TEST_CASE("unknown chat provider is rejected without implicit config", "[config]") {
-    EnvVar provider{"PT_CHAT_PROVIDER", "future-provider"};
+    EnvVar provider{"PT_BACKEND_CHAT_PROVIDER", "future-provider"};
 
-    const char* argv[] = {"app", "-i", INPUT, "-o", OUTPUT};
+    const char* argv[] = {"app", "--reader-path", INPUT, "--writer-path", OUTPUT};
     auto parsed = get_config(std::size(argv), const_cast<char**>(argv));
 
     CHECK(!parsed);
@@ -306,7 +323,21 @@ TEST_CASE("non-positive parallelism is rejected", "[config]") {
     auto config_dir = make_config_dir();
     EnvVar xdg{"XDG_CONFIG_HOME", config_dir.c_str()};
 
-    const char* argv[] = {"app", "--parallelism", "0", "-i", INPUT, "-o", OUTPUT};
+    const char* argv[] = {"app", "--backend-parallelism", "0",   "--reader-path",
+                          INPUT, "--writer-path",         OUTPUT};
+    auto parsed = get_config(std::size(argv), const_cast<char**>(argv));
+
+    CHECK(!parsed);
+    CHECK(parsed.error() == exit_code::usage_error);
+
+    std::filesystem::remove_all(config_dir);
+}
+
+TEST_CASE("unsupported writer extension is rejected", "[config]") {
+    auto config_dir = make_config_dir();
+    EnvVar xdg{"XDG_CONFIG_HOME", config_dir.c_str()};
+
+    const char* argv[] = {"app", "--reader-path", INPUT, "--writer-path", "output.docx"};
     auto parsed = get_config(std::size(argv), const_cast<char**>(argv));
 
     CHECK(!parsed);
@@ -318,16 +349,16 @@ TEST_CASE("non-positive parallelism is rejected", "[config]") {
 TEST_CASE("invalid parallelism env keeps prior value", "[config]") {
     auto config_dir = make_config_dir();
     std::ofstream config{config_dir / "parallel-translation" / "config.toml"};
-    config << "[translation]\n"
+    config << "[backend]\n"
               "parallelism = 3\n";
     config.close();
 
     EnvVar xdg{"XDG_CONFIG_HOME", config_dir.c_str()};
-    EnvVar parallelism{"PT_PARALLELISM", "many"};
+    EnvVar parallelism{"PT_BACKEND_PARALLELISM", "many"};
 
     auto cfg = get_test_config();
 
-    CHECK(cfg.parallelism == 3);
+    CHECK(cfg.backend.parallelism == 3);
 
     std::filesystem::remove_all(config_dir);
 }
@@ -440,44 +471,44 @@ TEST_CASE("cli chat provider selects matching provider config before overrides",
 
     auto config_dir = make_config_dir();
     std::ofstream config{config_dir / "parallel-translation" / "config.toml"};
-    config << "[chat_api]\n"
+    config << "[backend.chat_api]\n"
               "provider = \"ollama\"\n"
               "\n"
-              "[ollama]\n"
+              "[backend.chat_api.ollama]\n"
               "host = \"http://ollama.invalid\"\n"
               "model = \"llama3\"\n"
               "\n"
-              "[openrouter]\n"
+              "[backend.chat_api.openrouter]\n"
               "host = \"https://openrouter.invalid\"\n"
               "model = \"google/gemma-4-31b-it\"\n"
               "api_key = \"from-file\"\n";
     config.close();
 
     EnvVar xdg{"XDG_CONFIG_HOME", config_dir.c_str()};
-    EnvVar provider{"PT_CHAT_PROVIDER", nullptr};
-    EnvVar host{"PT_CHAT_HOST", nullptr};
-    EnvVar model{"PT_CHAT_MODEL", nullptr};
-    EnvVar key{"PT_CHAT_API_KEY", nullptr};
+    EnvVar provider{"PT_BACKEND_CHAT_PROVIDER", nullptr};
+    EnvVar host{"PT_BACKEND_CHAT_HOST", nullptr};
+    EnvVar model{"PT_BACKEND_CHAT_MODEL", nullptr};
+    EnvVar key{"PT_BACKEND_CHAT_API_KEY", nullptr};
 
     auto server_host = test_server.host();
     const char* argv[] = {"app",
-                          "--backend",
+                          "--backend-provider",
                           "chat-api",
-                          "--postprocess",
+                          "--postprocessor-provider",
                           "none",
-                          "--parallelism",
+                          "--backend-parallelism",
                           "1",
-                          "--chat-provider",
+                          "--backend-chat-provider",
                           "openrouter",
-                          "--chat-host",
+                          "--backend-chat-host",
                           server_host.c_str(),
-                          "--chat-model",
+                          "--backend-chat-model",
                           "cli-model",
-                          "--chat-api-key",
+                          "--backend-chat-api-key",
                           "cli-key",
-                          "-i",
+                          "--reader-path",
                           INPUT,
-                          "-o",
+                          "--writer-path",
                           OUTPUT};
 
     CHECK(run(std::size(argv), const_cast<char**>(argv)) == 0);
@@ -489,22 +520,23 @@ TEST_CASE("cli chat provider selects matching provider config before overrides",
 
 TEST_CASE("errors on non-existent input file", "[integration]") {
     const char* argv[] = {"app",
-                          "--backend",
+                          "--backend-provider",
                           "stub",
-                          "--postprocess",
+                          "--postprocessor-provider",
                           "none",
-                          "-i",
+                          "--reader-path",
                           ASSETS_DIR // NOLINT(bugprone-suspicious-missing-comma)
                           "/nonexistent.txt",
-                          "-o",
+                          "--writer-path",
                           OUTPUT};
 
     CHECK(run(std::size(argv), const_cast<char**>(argv)) == exit_code::input_error);
 }
 
 TEST_CASE("errors when parallelism exceeds semaphore capacity", "[integration]") {
-    const char* argv[] = {"app", "--backend", "stub", "--postprocess", "none", "-i",
-                          INPUT, "-o",        OUTPUT, "--parallelism", "1025"};
+    const char* argv[] = {"app",  "--backend-provider",    "stub", "--postprocessor-provider",
+                          "none", "--reader-path",         INPUT,  "--writer-path",
+                          OUTPUT, "--backend-parallelism", "1025"};
 
     CHECK(run(std::size(argv), const_cast<char**>(argv)) == exit_code::usage_error);
 

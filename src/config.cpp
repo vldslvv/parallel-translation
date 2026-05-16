@@ -37,18 +37,13 @@ struct ProviderUserConfig {
 };
 
 struct UserConfig {
-    std::string input_file;
-    std::string output_file;
-    std::string backend = "chat-api";
-    std::string postprocess = "morpheus";
-    std::string chat_api_provider = "ollama";
+    ReaderConfig reader;
+    PostprocessingConfig postprocessing;
+    BackendConfig backend;
+    WriterConfig writer;
+    std::string backend_chat_api_provider = "ollama";
     std::array<ProviderUserConfig, 2> chat_api;
-    std::string source_lang = "la";
-    std::string target_lang = "en";
     std::string log_level = "warn";
-    std::string config_file; // path used, empty if none found
-    bool breves = false;
-    int parallelism = 1;
 };
 
 struct CliOverrides {
@@ -82,7 +77,8 @@ const ProviderInfo* provider_info(std::string_view provider) {
 
 ChatApiUserConfig default_chat_api_user_config(const ProviderInfo& provider) {
     return {.host = std::string{provider.default_host},
-            .model = std::string{provider.default_model}};
+            .model = std::string{provider.default_model},
+            .api_key = {}};
 }
 
 UserConfig make_default_user_config() {
@@ -126,24 +122,19 @@ std::optional<std::filesystem::path> config_file_path() {
     return std::nullopt;
 }
 
-ChatApiUserConfig read_provider_table(const toml::table& tbl, const ProviderInfo& provider) {
+ChatApiUserConfig read_provider_table(const toml::node_view<toml::node>& chat_api,
+                                      const ProviderInfo& provider) {
     ChatApiUserConfig cfg = default_chat_api_user_config(provider);
     const auto provider_key = std::string{provider.name};
 
-    if (auto v = tbl[provider_key]["host"].value<std::string>())
+    if (auto v = chat_api[provider_key]["host"].value<std::string>())
         cfg.host = *v;
-    if (auto v = tbl[provider_key]["model"].value<std::string>())
+    if (auto v = chat_api[provider_key]["model"].value<std::string>())
         cfg.model = *v;
-    if (auto v = tbl[provider_key]["api_key"].value<std::string>())
+    if (auto v = chat_api[provider_key]["api_key"].value<std::string>())
         cfg.api_key = *v;
 
     return cfg;
-}
-
-bool has_legacy_chat_api_fields(const toml::table& tbl) {
-    return tbl["chat_api"]["host"].value<std::string>().has_value() ||
-           tbl["chat_api"]["model"].value<std::string>().has_value() ||
-           tbl["chat_api"]["api_key"].value<std::string>().has_value();
 }
 
 std::expected<void, int> load_file_config(UserConfig& cfg) {
@@ -153,24 +144,32 @@ std::expected<void, int> load_file_config(UserConfig& cfg) {
 
     try {
         auto tbl = toml::parse_file(path->string());
-        if (has_legacy_chat_api_fields(tbl)) {
-            spdlog::error("legacy [chat_api] host/model/api_key fields are not supported");
-            return std::unexpected(exit_code::usage_error);
-        }
 
-        cfg.config_file = path->string();
-        if (auto v = tbl["chat_api"]["provider"].value<std::string>())
-            cfg.chat_api_provider = *v;
+        if (auto v = tbl["reader"]["path"].value<std::string>())
+            cfg.reader.path = *v;
+        if (auto v = tbl["writer"]["path"].value<std::string>())
+            cfg.writer.path = *v;
+        if (auto v = tbl["postprocessing"]["provider"].value<std::string>())
+            cfg.postprocessing.provider = *v;
+        if (auto v = tbl["postprocessing"]["breves"].value<bool>())
+            cfg.postprocessing.breves = *v;
+        if (auto v = tbl["backend"]["provider"].value<std::string>())
+            cfg.backend.provider = *v;
+        if (auto v = tbl["backend"]["source_lang"].value<std::string>())
+            cfg.backend.source_lang = *v;
+        if (auto v = tbl["backend"]["target_lang"].value<std::string>())
+            cfg.backend.target_lang = *v;
+        if (auto v = tbl["backend"]["parallelism"].value<int>())
+            cfg.backend.parallelism = *v;
+
+        const auto backend_chat_api = tbl["backend"]["chat_api"];
+        if (auto v = backend_chat_api["provider"].value<std::string>())
+            cfg.backend_chat_api_provider = *v;
         for (const auto& provider : providers) {
             if (auto* entry = provider_user_config(cfg, provider.name))
-                entry->config = read_provider_table(tbl, provider);
+                entry->config = read_provider_table(backend_chat_api, provider);
         }
-        if (auto v = tbl["translation"]["source_lang"].value<std::string>())
-            cfg.source_lang = *v;
-        if (auto v = tbl["translation"]["target_lang"].value<std::string>())
-            cfg.target_lang = *v;
-        if (auto v = tbl["translation"]["parallelism"].value<int>())
-            cfg.parallelism = *v;
+
         if (auto v = tbl["log"]["level"].value<std::string>())
             cfg.log_level = *v;
     } catch (const toml::parse_error& e) {
@@ -183,7 +182,7 @@ std::expected<void, int> load_file_config(UserConfig& cfg) {
 
 void apply_chat_api_overrides(UserConfig& cfg, std::string_view host, std::string_view model,
                               std::string_view api_key) {
-    auto* selected = provider_user_config(cfg, cfg.chat_api_provider);
+    auto* selected = provider_user_config(cfg, cfg.backend_chat_api_provider);
     if (selected == nullptr)
         return;
 
@@ -195,26 +194,51 @@ void apply_chat_api_overrides(UserConfig& cfg, std::string_view host, std::strin
         selected->config.api_key = api_key;
 }
 
+std::optional<bool> parse_bool_env(std::string_view value) {
+    if (value == "1" || value == "true" || value == "yes" || value == "on")
+        return true;
+    if (value == "0" || value == "false" || value == "no" || value == "off")
+        return false;
+    return std::nullopt;
+}
+
 void apply_env_config(UserConfig& cfg) {
-    if (const char* v = std::getenv("PT_CHAT_PROVIDER"))
-        cfg.chat_api_provider = v;
+    if (const char* v = std::getenv("PT_READER_PATH"))
+        cfg.reader.path = v;
+    if (const char* v = std::getenv("PT_WRITER_PATH"))
+        cfg.writer.path = v;
+    if (const char* v = std::getenv("PT_BACKEND_PROVIDER"))
+        cfg.backend.provider = v;
+    if (const char* v = std::getenv("PT_POSTPROCESSOR_PROVIDER"))
+        cfg.postprocessing.provider = v;
+    if (const char* v = std::getenv("PT_POSTPROCESSOR_BREVES")) {
+        if (auto parsed = parse_bool_env(v))
+            cfg.postprocessing.breves = *parsed;
+        else
+            spdlog::warn("PT_POSTPROCESSOR_BREVES='{}' is not a valid boolean, using prior value",
+                         v);
+    }
+    if (const char* v = std::getenv("PT_BACKEND_CHAT_PROVIDER"))
+        cfg.backend_chat_api_provider = v;
 
-    apply_chat_api_overrides(cfg, env_value("PT_CHAT_HOST"), env_value("PT_CHAT_MODEL"),
-                             env_value("PT_CHAT_API_KEY"));
+    apply_chat_api_overrides(cfg, env_value("PT_BACKEND_CHAT_HOST"),
+                             env_value("PT_BACKEND_CHAT_MODEL"),
+                             env_value("PT_BACKEND_CHAT_API_KEY"));
 
-    if (const char* v = std::getenv("PT_SOURCE_LANG"))
-        cfg.source_lang = v;
-    if (const char* v = std::getenv("PT_TARGET_LANG"))
-        cfg.target_lang = v;
-    if (const char* v = std::getenv("PT_LOG_LEVEL"))
-        cfg.log_level = v;
-    if (const char* v = std::getenv("PT_PARALLELISM")) {
+    if (const char* v = std::getenv("PT_BACKEND_SOURCE_LANG"))
+        cfg.backend.source_lang = v;
+    if (const char* v = std::getenv("PT_BACKEND_TARGET_LANG"))
+        cfg.backend.target_lang = v;
+    if (const char* v = std::getenv("PT_BACKEND_PARALLELISM")) {
         try {
-            cfg.parallelism = std::stoi(v);
+            cfg.backend.parallelism = std::stoi(v);
         } catch (...) {
-            spdlog::warn("PT_PARALLELISM='{}' is not a valid integer, using prior value", v);
+            spdlog::warn("PT_BACKEND_PARALLELISM='{}' is not a valid integer, using prior value",
+                         v);
         }
     }
+    if (const char* v = std::getenv("PT_LOG_LEVEL"))
+        cfg.log_level = v;
 }
 
 std::expected<CliOverrides, int> parse_cli_config(int argc, char* argv[], UserConfig& cfg) {
@@ -223,22 +247,29 @@ std::expected<CliOverrides, int> parse_cli_config(int argc, char* argv[], UserCo
 
     CliOverrides cli;
 
-    app.add_option("--input,-i", cfg.input_file, "Input file path")->required();
-    app.add_option("--output,-o", cfg.output_file, "Output file path")->required();
-    app.add_option("--backend", cfg.backend, "Translation backend: chat-api, stub, pass")
+    app.add_option("--reader-path", cfg.reader.path, "Input file path");
+    app.add_option("--writer-path", cfg.writer.path, "Output file path");
+    app.add_option("--backend-provider", cfg.backend.provider,
+                   "Translation backend provider: chat-api, stub, pass")
         ->capture_default_str();
-    app.add_option("--postprocess", cfg.postprocess,
-                   "Macron postprocessor: morpheus, chat-api, none")
+    app.add_option("--postprocessor-provider", cfg.postprocessing.provider,
+                   "Macron postprocessor provider: morpheus, chat-api, none")
         ->capture_default_str();
-    app.add_flag("--breves", cfg.breves, "Mark short vowels with a breve (morpheus only)");
-    app.add_option("--chat-provider", cli.chat_provider, "Chat API provider: ollama, openrouter");
-    app.add_option("--chat-host", cli.chat_host, "Chat API host URL (overrides config)");
-    app.add_option("--chat-model", cli.chat_model, "Chat API model name (overrides config)");
-    app.add_option("--chat-api-key", cli.chat_api_key, "Chat API key (overrides config)");
+    app.add_flag("--postprocessor-breves", cfg.postprocessing.breves,
+                 "Mark short vowels with a breve (morpheus only)");
+    app.add_option("--backend-chat-provider", cli.chat_provider,
+                   "Backend Chat API provider: ollama, openrouter");
+    app.add_option("--backend-chat-host", cli.chat_host, "Backend Chat API host URL");
+    app.add_option("--backend-chat-model", cli.chat_model, "Backend Chat API model name");
+    app.add_option("--backend-chat-api-key", cli.chat_api_key, "Backend Chat API key");
+    app.add_option("--backend-source-lang", cfg.backend.source_lang, "Backend source language")
+        ->capture_default_str();
+    app.add_option("--backend-target-lang", cfg.backend.target_lang, "Backend target language")
+        ->capture_default_str();
+    app.add_option("--backend-parallelism", cfg.backend.parallelism, "Max concurrent translations")
+        ->capture_default_str();
     app.add_option("--log-level", cli.log_level,
                    "Log level: trace/debug/info/warn/error/critical/off");
-    app.add_option("--parallelism", cfg.parallelism, "Max concurrent translations")
-        ->capture_default_str();
 
     try {
         app.parse(argc, argv);
@@ -251,17 +282,17 @@ std::expected<CliOverrides, int> parse_cli_config(int argc, char* argv[], UserCo
 
 void apply_cli_overrides(UserConfig& cfg, const CliOverrides& cli) {
     if (!cli.chat_provider.empty())
-        cfg.chat_api_provider = cli.chat_provider;
+        cfg.backend_chat_api_provider = cli.chat_provider;
     apply_chat_api_overrides(cfg, cli.chat_host, cli.chat_model, cli.chat_api_key);
     if (!cli.log_level.empty())
         cfg.log_level = cli.log_level;
 }
 
 std::expected<ChatApiConfig, int> selected_provider_config(const UserConfig& cfg) {
-    const auto* provider = provider_info(cfg.chat_api_provider);
-    const auto* selected = provider_user_config(cfg, cfg.chat_api_provider);
+    const auto* provider = provider_info(cfg.backend_chat_api_provider);
+    const auto* selected = provider_user_config(cfg, cfg.backend_chat_api_provider);
     if (provider == nullptr || selected == nullptr) {
-        spdlog::error("chat-api: unknown provider: {}", cfg.chat_api_provider);
+        spdlog::error("backend chat-api: unknown provider: {}", cfg.backend_chat_api_provider);
         return std::unexpected(exit_code::usage_error);
     }
 
@@ -273,19 +304,81 @@ std::expected<ChatApiConfig, int> selected_provider_config(const UserConfig& cfg
                          .endpoint_path = std::string{provider->endpoint_path}};
 }
 
+void apply_selected_chat_api_config(UserConfig& cfg, const ChatApiConfig& chat_api) {
+    cfg.backend.chat_api = chat_api;
+    cfg.postprocessing.chat_api = chat_api;
+}
+
+std::expected<std::string, int> reader_format_from_path(const std::string& path) {
+    const auto extension = std::filesystem::path{path}.extension().string();
+    if (extension == ".txt")
+        return "txt";
+    if (extension == ".pdf")
+        return "pdf";
+
+    spdlog::error("unsupported reader extension: {}", extension);
+    return std::unexpected(exit_code::usage_error);
+}
+
+std::expected<std::string, int> writer_format_from_path(const std::string& path) {
+    const auto extension = std::filesystem::path{path}.extension().string();
+    if (extension == ".txt")
+        return "txt";
+    if (extension == ".pdf")
+        return "pdf";
+
+    spdlog::error("unsupported writer extension: {}", extension);
+    return std::unexpected(exit_code::usage_error);
+}
+
+std::expected<void, int> resolve_pipeline_config(UserConfig& cfg) {
+    if (cfg.reader.path.empty()) {
+        spdlog::error("reader path is required");
+        return std::unexpected(exit_code::usage_error);
+    }
+    if (cfg.writer.path.empty()) {
+        spdlog::error("writer path is required");
+        return std::unexpected(exit_code::usage_error);
+    }
+
+    auto reader_format = reader_format_from_path(cfg.reader.path);
+    if (!reader_format)
+        return std::unexpected(reader_format.error());
+    cfg.reader.format = std::move(*reader_format);
+
+    auto writer_format = writer_format_from_path(cfg.writer.path);
+    if (!writer_format)
+        return std::unexpected(writer_format.error());
+    cfg.writer.format = std::move(*writer_format);
+
+    if (cfg.backend.parallelism < 1) {
+        spdlog::error("backend parallelism must be at least 1");
+        return std::unexpected(exit_code::usage_error);
+    }
+
+    return {};
+}
+
 void log_config(const Config& config) {
-    spdlog::debug("config: file={}", config.config_file.empty() ? "(none)" : config.config_file);
-    spdlog::debug("config: chat_api_provider={}", config.chat_api.provider);
-    spdlog::debug("config: chat_api_host={}", config.chat_api.host);
-    spdlog::debug("config: chat_api_model={}", config.chat_api.model);
-    spdlog::debug("config: chat_api_api_key={}",
-                  config.chat_api.api_key.empty() ? "(empty)" : "(set)");
-    spdlog::debug("config: chat_api_style={}", config.chat_api.api_style);
-    spdlog::debug("config: chat_api_endpoint_path={}", config.chat_api.endpoint_path);
-    spdlog::debug("config: source_lang={}", config.source_lang);
-    spdlog::debug("config: target_lang={}", config.target_lang);
+    spdlog::debug("config: reader_path={}", config.reader.path);
+    spdlog::debug("config: reader_format={}", config.reader.format);
+    spdlog::debug("config: postprocessing_provider={}", config.postprocessing.provider);
+    spdlog::debug("config: postprocessing_breves={}", config.postprocessing.breves);
+    spdlog::debug("config: backend_provider={}", config.backend.provider);
+    spdlog::debug("config: backend_chat_api_provider={}", config.backend.chat_api.provider);
+    spdlog::debug("config: backend_chat_api_host={}", config.backend.chat_api.host);
+    spdlog::debug("config: backend_chat_api_model={}", config.backend.chat_api.model);
+    spdlog::debug("config: backend_chat_api_api_key={}",
+                  config.backend.chat_api.api_key.empty() ? "(empty)" : "(set)");
+    spdlog::debug("config: backend_chat_api_style={}", config.backend.chat_api.api_style);
+    spdlog::debug("config: backend_chat_api_endpoint_path={}",
+                  config.backend.chat_api.endpoint_path);
+    spdlog::debug("config: backend_source_lang={}", config.backend.source_lang);
+    spdlog::debug("config: backend_target_lang={}", config.backend.target_lang);
+    spdlog::debug("config: backend_parallelism={}", config.backend.parallelism);
+    spdlog::debug("config: writer_path={}", config.writer.path);
+    spdlog::debug("config: writer_format={}", config.writer.format);
     spdlog::debug("config: log_level={}", config.log_level);
-    spdlog::debug("config: parallelism={}", config.parallelism);
 }
 
 } // namespace
@@ -302,26 +395,20 @@ std::expected<Config, int> get_config(int argc, char* argv[]) {
         return std::unexpected(cli.error());
     apply_cli_overrides(user_config, *cli);
 
+    if (auto resolved = resolve_pipeline_config(user_config); !resolved)
+        return std::unexpected(resolved.error());
+
     auto chat_api = selected_provider_config(user_config);
     if (!chat_api)
         return std::unexpected(chat_api.error());
 
-    Config config{.input_file = std::move(user_config.input_file),
-                  .output_file = std::move(user_config.output_file),
-                  .backend = std::move(user_config.backend),
-                  .postprocess = std::move(user_config.postprocess),
-                  .chat_api = std::move(*chat_api),
-                  .source_lang = std::move(user_config.source_lang),
-                  .target_lang = std::move(user_config.target_lang),
-                  .log_level = std::move(user_config.log_level),
-                  .config_file = std::move(user_config.config_file),
-                  .breves = user_config.breves,
-                  .parallelism = user_config.parallelism};
+    apply_selected_chat_api_config(user_config, *chat_api);
 
-    if (config.parallelism < 1) {
-        spdlog::error("parallelism must be at least 1");
-        return std::unexpected(exit_code::usage_error);
-    }
+    Config config{.reader = std::move(user_config.reader),
+                  .postprocessing = std::move(user_config.postprocessing),
+                  .backend = std::move(user_config.backend),
+                  .writer = std::move(user_config.writer),
+                  .log_level = std::move(user_config.log_level)};
 
     spdlog::set_level(spdlog::level::from_str(config.log_level));
     log_config(config);

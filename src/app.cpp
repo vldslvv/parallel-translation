@@ -4,7 +4,6 @@
 
 #include <deque>
 #include <expected>
-#include <filesystem>
 #include <future>
 #include <optional>
 #include <semaphore>
@@ -24,37 +23,55 @@
 #include "writers/pdf.hpp"
 #include "writers/writer.hpp"
 
-static std::expected<Reader, int> get_reader(const std::string& input_file) {
-    std::string extension = std::filesystem::path{input_file}.extension();
-    if (extension == ".txt") {
+static std::expected<Reader, int> get_reader(const ReaderConfig& config) {
+    if (config.format == "txt") {
         return txt_reader;
     }
-    if (extension == ".pdf") {
+    if (config.format == "pdf") {
         return pdf_reader;
     }
 
-    spdlog::error("unsupported extension: {}", extension);
+    spdlog::error("unsupported reader format: {}", config.format);
     return std::unexpected(exit_code::usage_error);
 }
 
-static std::expected<Translator, int> get_translator(const std::string& backend,
-                                                     const Config& cfg) {
-    if (backend == "stub") {
+static std::expected<Translator, int> get_translator(const BackendConfig& config) {
+    if (config.provider == "stub") {
         return stub_translator;
     }
-    if (backend == "pass") {
+    if (config.provider == "pass") {
         return pass_translator;
     }
-    if (backend == "chat-api") {
+    if (config.provider == "chat-api") {
         try {
-            return make_chat_api_latin_to_english_translator(cfg.chat_api);
+            return make_chat_api_latin_to_english_translator(config.chat_api);
         } catch (const std::exception& e) {
             spdlog::error("{}", e.what());
             return std::unexpected(exit_code::usage_error);
         }
     }
 
-    spdlog::error("unknown backend: {}", backend);
+    spdlog::error("unknown backend provider: {}", config.provider);
+    return std::unexpected(exit_code::usage_error);
+}
+
+static std::expected<Translator, int> get_postprocessor(const PostprocessingConfig& config) {
+    if (config.provider == "morpheus") {
+        return make_morpheus_macron_translator(config.breves);
+    }
+    if (config.provider == "chat-api") {
+        try {
+            return make_chat_api_macron_translator(config.chat_api);
+        } catch (const std::exception& e) {
+            spdlog::error("{}", e.what());
+            return std::unexpected(exit_code::usage_error);
+        }
+    }
+    if (config.provider == "none") {
+        return pass_translator;
+    }
+
+    spdlog::error("unknown postprocessor provider: {}", config.provider);
     return std::unexpected(exit_code::usage_error);
 }
 
@@ -143,55 +160,42 @@ int run(int argc, char* argv[]) {
     }
     Config& config = parsed.value();
 
-    auto reader = get_reader(config.input_file);
+    auto reader = get_reader(config.reader);
     if (!reader) {
         return reader.error();
     }
-    auto translator = get_translator(config.backend, config);
+    auto translator = get_translator(config.backend);
     if (!translator) {
         return translator.error();
     }
-    std::string ext = std::filesystem::path{config.output_file}.extension();
+    auto postprocessor = get_postprocessor(config.postprocessing);
+    if (!postprocessor) {
+        return postprocessor.error();
+    }
+
     std::optional<StreamWriter> txt_sw;
     std::optional<PdfWriter> pdf_pw;
     FormattedWriter formatted_write;
 
-    Translator postprocessor;
-    if (config.postprocess == "morpheus") {
-        postprocessor = make_morpheus_macron_translator(config.breves);
-    } else if (config.postprocess == "chat-api") {
-        try {
-            postprocessor = make_chat_api_macron_translator(config.chat_api);
-        } catch (const std::exception& e) {
-            spdlog::error("{}", e.what());
-            return exit_code::usage_error;
-        }
-    } else if (config.postprocess == "none") {
-        postprocessor = pass_translator;
-    } else {
-        spdlog::error("unknown postprocessor: {}", config.postprocess);
-        return exit_code::usage_error;
-    }
-
-    if (ext == ".txt") {
-        txt_sw.emplace(txt_writer(config.output_file));
+    if (config.writer.format == "txt") {
+        txt_sw.emplace(txt_writer(config.writer.path));
         if (!txt_sw->is_open()) {
-            spdlog::error("cannot open output file: {}", config.output_file);
+            spdlog::error("cannot open output file: {}", config.writer.path);
             return exit_code::output_error;
         }
         formatted_write = make_formatted_writer(*txt_sw, plain_formatter);
-    } else if (ext == ".pdf") {
-        pdf_pw.emplace(config.output_file);
+    } else if (config.writer.format == "pdf") {
+        pdf_pw.emplace(config.writer.path);
         if (!pdf_pw->is_open()) {
-            spdlog::error("cannot open output file: {}", config.output_file);
+            spdlog::error("cannot open output file: {}", config.writer.path);
             return exit_code::output_error;
         }
         formatted_write = make_pdf_formatted_writer(*pdf_pw);
     } else {
-        spdlog::error("unsupported output extension: {}", ext);
+        spdlog::error("unsupported writer format: {}", config.writer.format);
         return exit_code::usage_error;
     }
 
-    return translate_file(*reader, *translator, postprocessor, formatted_write, config.input_file,
-                          config.parallelism);
+    return translate_file(*reader, *translator, *postprocessor, formatted_write, config.reader.path,
+                          config.backend.parallelism);
 }

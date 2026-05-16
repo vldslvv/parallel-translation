@@ -11,18 +11,36 @@ struct ChatApiConfig {
     std::string endpoint_path;
 };
 
-struct Config {
-    std::string input_file;
-    std::string output_file;
-    std::string backend = "chat-api";
-    std::string postprocess = "morpheus";
-    ChatApiConfig chat_api; // can be further reduced to BackendConfig
+struct ReaderConfig {
+    std::string path;
+    std::string format;
+};
+
+struct PostprocessingConfig {
+    std::string provider = "morpheus";
+    bool breves = false;
+    ChatApiConfig chat_api;
+};
+
+struct BackendConfig {
+    std::string provider = "chat-api";
     std::string source_lang = "la";
     std::string target_lang = "en";
-    std::string log_level = "warn";
-    std::string config_file; // path used, empty if none found
-    bool breves = false;
     int parallelism = 1;
+    ChatApiConfig chat_api;
+};
+
+struct WriterConfig {
+    std::string path;
+    std::string format;
+};
+
+struct Config {
+    ReaderConfig reader;
+    PostprocessingConfig postprocessing;
+    BackendConfig backend;
+    WriterConfig writer;
+    std::string log_level = "warn";
 };
 
 std::expected<Config, int> get_config(int argc, char* argv[]);
