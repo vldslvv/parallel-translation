@@ -158,7 +158,8 @@ int run(int argc, char* argv[]) {
     if (!parsed) {
         return parsed.error();
     }
-    Config& config = parsed.value();
+    // Resolved config is read-only for the rest of the run.
+    const Config& config = parsed.value();
 
     auto reader = get_reader(config.reader);
     if (!reader) {
