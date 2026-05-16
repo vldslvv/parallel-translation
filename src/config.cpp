@@ -1,12 +1,16 @@
 #include "config.hpp"
 
 #include <cstdlib>
+#include <expected>
 #include <filesystem>
 #include <stdexcept>
 #include <toml++/toml.hpp>
 #include <utility>
 
+#include <CLI/CLI.hpp>
 #include <spdlog/spdlog.h>
+
+#include "common/exit_codes.hpp"
 
 static std::filesystem::path config_file_path() {
     const char* xdg = std::getenv("XDG_CONFIG_HOME");
@@ -120,6 +124,89 @@ Config load_config() {
     }
 
     return get_env_config(std::move(cfg));
+}
+
+static void apply_chat_api_cli_overrides(Config& cfg, const std::string& model,
+                                         const std::string& host, const std::string& api_key) {
+    if (cfg.chat_api_provider == "ollama") {
+        if (!model.empty())
+            cfg.ollama.model = model;
+        if (!host.empty())
+            cfg.ollama.host = host;
+        if (!api_key.empty())
+            cfg.ollama.api_key = api_key;
+        return;
+    }
+    if (cfg.chat_api_provider == "openrouter") {
+        if (!model.empty())
+            cfg.openrouter.model = model;
+        if (!host.empty())
+            cfg.openrouter.host = host;
+        if (!api_key.empty())
+            cfg.openrouter.api_key = api_key;
+    }
+}
+
+std::expected<Config, int> get_config(int argc, char* argv[]) {
+    Config config = load_config();
+
+    CLI::App app{"parallel-translation"};
+    app.set_version_flag("--version,-v", "0.1.0");
+
+    std::string provider;
+    std::string model;
+    std::string host;
+    std::string api_key;
+    std::string log_level;
+
+    app.add_option("--input,-i", config.input_file, "Input file path")->required();
+    app.add_option("--output,-o", config.output_file, "Output file path")->required();
+    app.add_option("--backend", config.backend, "Translation backend: chat-api, stub, pass")
+        ->capture_default_str();
+    app.add_option("--postprocess", config.postprocess,
+                   "Macron postprocessor: morpheus, chat-api, none")
+        ->capture_default_str();
+    app.add_flag("--breves", config.breves, "Mark short vowels with a breve (morpheus only)");
+    app.add_option("--chat-provider", provider, "Chat API provider: ollama, openrouter");
+    app.add_option("--chat-host", host, "Chat API host URL (overrides config)");
+    app.add_option("--chat-model", model, "Chat API model name (overrides config)");
+    app.add_option("--chat-api-key", api_key, "Chat API key (overrides config)");
+    app.add_option("--log-level", log_level, "Log level: trace/debug/info/warn/error/critical/off");
+    app.add_option("--parallelism", config.parallelism, "Max concurrent translations")
+        ->capture_default_str();
+
+    try {
+        app.parse(argc, argv);
+    } catch (const CLI::ParseError& e) {
+        return std::unexpected(app.exit(e));
+    }
+
+    if (!provider.empty())
+        config.chat_api_provider = provider;
+    apply_chat_api_cli_overrides(config, model, host, api_key);
+
+    ChatApiConfig chat_api;
+    try {
+        chat_api = selected_chat_api_config(config);
+    } catch (const std::exception& e) {
+        spdlog::error("{}", e.what());
+        return std::unexpected(exit_code::usage_error);
+    }
+
+    if (!log_level.empty())
+        config.log_level = log_level;
+    spdlog::set_level(spdlog::level::from_str(config.log_level));
+    spdlog::debug("config: file={}", config.config_file.empty() ? "(none)" : config.config_file);
+    spdlog::debug("config: chat_api_provider={}", config.chat_api_provider);
+    spdlog::debug("config: chat_api_host={}", chat_api.host);
+    spdlog::debug("config: chat_api_model={}", chat_api.model);
+    spdlog::debug("config: chat_api_api_key={}", chat_api.api_key.empty() ? "(empty)" : "(set)");
+    spdlog::debug("config: source_lang={}", config.source_lang);
+    spdlog::debug("config: target_lang={}", config.target_lang);
+    spdlog::debug("config: log_level={}", config.log_level);
+    spdlog::debug("config: parallelism={}", config.parallelism);
+
+    return config;
 }
 
 ChatApiConfig selected_chat_api_config(const Config& cfg) {

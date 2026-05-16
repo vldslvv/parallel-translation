@@ -10,7 +10,6 @@
 #include <semaphore>
 #include <string>
 
-#include <CLI/CLI.hpp>
 #include <spdlog/spdlog.h>
 
 #include "common/exit_codes.hpp"
@@ -24,112 +23,6 @@
 #include "writers/formatted_writer.hpp"
 #include "writers/pdf.hpp"
 #include "writers/writer.hpp"
-
-// TODO: merge with config.cpp, or restructure
-struct AppConfig {
-    Config config;
-    std::string input_file;
-    std::string output_file;
-    std::string backend = "chat-api";
-    std::string postprocess = "morpheus";
-    bool breves = false;
-    int parallelism = 1;
-};
-
-static void apply_chat_api_cli_overrides(Config& cfg, const std::string& model,
-                                         const std::string& host, const std::string& api_key) {
-    if (cfg.chat_api_provider == "ollama") {
-        if (!model.empty())
-            cfg.ollama.model = model;
-        if (!host.empty())
-            cfg.ollama.host = host;
-        if (!api_key.empty())
-            cfg.ollama.api_key = api_key;
-        return;
-    }
-    if (cfg.chat_api_provider == "openrouter") {
-        if (!model.empty())
-            cfg.openrouter.model = model;
-        if (!host.empty())
-            cfg.openrouter.host = host;
-        if (!api_key.empty())
-            cfg.openrouter.api_key = api_key;
-    }
-}
-
-static std::expected<AppConfig, int> get_config(int argc, char* argv[]) {
-    Config config = load_config();
-
-    CLI::App app{"parallel-translation"};
-    app.set_version_flag("--version,-v", "0.1.0");
-
-    std::string input_file;
-    std::string output_file;
-    std::string backend = "chat-api";
-    std::string postprocess = "morpheus";
-    bool breves = false;
-    int parallelism = config.parallelism;
-    std::string provider;
-    std::string model;
-    std::string host;
-    std::string api_key;
-    std::string log_level;
-
-    app.add_option("--input,-i", input_file, "Input file path")->required();
-    app.add_option("--output,-o", output_file, "Output file path")->required();
-    app.add_option("--backend", backend, "Translation backend: chat-api, stub, pass")
-        ->capture_default_str();
-    app.add_option("--postprocess", postprocess, "Macron postprocessor: morpheus, chat-api, none")
-        ->capture_default_str();
-    app.add_flag("--breves", breves, "Mark short vowels with a breve (morpheus only)");
-    app.add_option("--chat-provider", provider, "Chat API provider: ollama, openrouter");
-    app.add_option("--chat-host", host, "Chat API host URL (overrides config)");
-    app.add_option("--chat-model", model, "Chat API model name (overrides config)");
-    app.add_option("--chat-api-key", api_key, "Chat API key (overrides config)");
-    app.add_option("--log-level", log_level, "Log level: trace/debug/info/warn/error/critical/off");
-    app.add_option("--parallelism", parallelism, "Max concurrent translations")->capture_default_str();
-
-    try {
-        app.parse(argc, argv);
-    } catch (const CLI::ParseError& e) {
-        return std::unexpected(app.exit(e));
-    }
-
-    if (!provider.empty())
-        config.chat_api_provider = provider;
-    apply_chat_api_cli_overrides(config, model, host, api_key);
-
-    ChatApiConfig chat_api;
-    try {
-        chat_api = selected_chat_api_config(config);
-    } catch (const std::exception& e) {
-        spdlog::error("{}", e.what());
-        return std::unexpected(exit_code::usage_error);
-    }
-
-    if (!log_level.empty())
-        config.log_level = log_level;
-    spdlog::set_level(spdlog::level::from_str(config.log_level));
-    spdlog::debug("config: file={}", config.config_file.empty() ? "(none)" : config.config_file);
-    spdlog::debug("config: chat_api_provider={}", config.chat_api_provider);
-    spdlog::debug("config: chat_api_host={}", chat_api.host);
-    spdlog::debug("config: chat_api_model={}", chat_api.model);
-    spdlog::debug("config: chat_api_api_key={}", chat_api.api_key.empty() ? "(empty)" : "(set)");
-    spdlog::debug("config: source_lang={}", config.source_lang);
-    spdlog::debug("config: target_lang={}", config.target_lang);
-    spdlog::debug("config: log_level={}", config.log_level);
-    spdlog::debug("config: parallelism={}", parallelism);
-
-    return AppConfig{
-        .config = std::move(config),
-        .input_file = input_file,
-        .output_file = output_file,
-        .backend = backend,
-        .postprocess = postprocess,
-        .breves = breves,
-        .parallelism = parallelism,
-    };
-}
 
 static std::expected<Reader, int> get_reader(const std::string& input_file) {
     std::string extension = std::filesystem::path{input_file}.extension();
@@ -248,50 +141,49 @@ int run(int argc, char* argv[]) {
     if (!parsed) {
         return parsed.error();
     }
-    AppConfig& app_config = parsed.value();
+    Config& config = parsed.value();
 
-    auto reader = get_reader(app_config.input_file);
+    auto reader = get_reader(config.input_file);
     if (!reader) {
         return reader.error();
     }
-    auto translator = get_translator(app_config.backend, app_config.config);
+    auto translator = get_translator(config.backend, config);
     if (!translator) {
         return translator.error();
     }
-    std::string ext = std::filesystem::path{app_config.output_file}.extension();
+    std::string ext = std::filesystem::path{config.output_file}.extension();
     std::optional<StreamWriter> txt_sw;
     std::optional<PdfWriter> pdf_pw;
     FormattedWriter formatted_write;
 
     Translator postprocessor;
-    if (app_config.postprocess == "morpheus") {
-        postprocessor = make_morpheus_macron_translator(app_config.breves);
-    } else if (app_config.postprocess == "chat-api") {
+    if (config.postprocess == "morpheus") {
+        postprocessor = make_morpheus_macron_translator(config.breves);
+    } else if (config.postprocess == "chat-api") {
         try {
-            postprocessor =
-                make_chat_api_macron_translator(selected_chat_api_config(app_config.config));
+            postprocessor = make_chat_api_macron_translator(selected_chat_api_config(config));
         } catch (const std::exception& e) {
             spdlog::error("{}", e.what());
             return exit_code::usage_error;
         }
-    } else if (app_config.postprocess == "none") {
+    } else if (config.postprocess == "none") {
         postprocessor = pass_translator;
     } else {
-        spdlog::error("unknown postprocessor: {}", app_config.postprocess);
+        spdlog::error("unknown postprocessor: {}", config.postprocess);
         return exit_code::usage_error;
     }
 
     if (ext == ".txt") {
-        txt_sw.emplace(txt_writer(app_config.output_file));
+        txt_sw.emplace(txt_writer(config.output_file));
         if (!txt_sw->is_open()) {
-            spdlog::error("cannot open output file: {}", app_config.output_file);
+            spdlog::error("cannot open output file: {}", config.output_file);
             return exit_code::output_error;
         }
         formatted_write = make_formatted_writer(*txt_sw, plain_formatter);
     } else if (ext == ".pdf") {
-        pdf_pw.emplace(app_config.output_file);
+        pdf_pw.emplace(config.output_file);
         if (!pdf_pw->is_open()) {
-            spdlog::error("cannot open output file: {}", app_config.output_file);
+            spdlog::error("cannot open output file: {}", config.output_file);
             return exit_code::output_error;
         }
         formatted_write = make_pdf_formatted_writer(*pdf_pw);
@@ -300,6 +192,6 @@ int run(int argc, char* argv[]) {
         return exit_code::usage_error;
     }
 
-    return translate_file(*reader, *translator, postprocessor, formatted_write, app_config.input_file,
-                          app_config.parallelism);
+    return translate_file(*reader, *translator, postprocessor, formatted_write, config.input_file,
+                          config.parallelism);
 }
