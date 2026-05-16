@@ -307,6 +307,8 @@ TEST_CASE("missing config home falls back to defaults", "[config]") {
 
     CHECK(parsed->backend.chat_api.provider == "ollama");
     CHECK(parsed->backend.chat_api.host == "http://localhost:11434");
+    CHECK(parsed->postprocessing.provider == "morpheus");
+    CHECK(parsed->postprocessing.breves == false);
     CHECK(parsed->reader.path == INPUT);
     CHECK(parsed->reader.format == "txt");
     CHECK(parsed->writer.path == OUTPUT);

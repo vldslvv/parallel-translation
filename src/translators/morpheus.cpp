@@ -211,6 +211,8 @@ Translator make_morpheus_macron_translator(bool render_breves) {
                 out.words[i] = it->second;
             // else: keep original
         }
-        return reconstruct(out);
+        auto reconstructed = reconstruct(out);
+        spdlog::debug("morpheus macron: input: {}\n  output: {}", text, reconstructed);
+        return reconstructed;
     };
 }

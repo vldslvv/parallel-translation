@@ -7,6 +7,11 @@ description: Use this skill when an autonomous agent needs to install, configure
 
 Use this skill to run the `parallel-translation` CLI. Focus on prerequisites, installation, backend health, configuration, and reliable translation jobs. Do not use this as a development guide.
 
+Default operating rules:
+
+- Always use Morpheus as the postprocessor unless the user explicitly requests another postprocessor or asks to disable postprocessing.
+- Always translate to PDF output unless the user explicitly requests another output format. The CLI selects output format from the writer path extension, so normal jobs should use `--writer-path ...pdf`.
+
 Before any Conan or build commands, activate the project's dedicated Conan virtual environment:
 
 ```sh
@@ -43,12 +48,12 @@ To specify input or output format, use a path ending in the correct extension:
 
 ```sh
 parallel-translation --reader-path input.txt --writer-path output.pdf
-parallel-translation --reader-path input.pdf --writer-path output.txt
+parallel-translation --reader-path input.pdf --writer-path output.pdf
 ```
 
-Before running a job, verify that the input path and output path each end in `.txt` or `.pdf`. Treat missing, misspelled, or unsupported extensions as invalid job setup.
+Before running a job, verify that the input path and output path each end in `.txt` or `.pdf`. Treat missing, misspelled, or unsupported extensions as invalid job setup. Prefer `.pdf` for output unless the user asked for `.txt`.
 
-The tool reads the input, splits it into translation units, translates units concurrently, optionally postprocesses the original Latin text, and writes original/translation pairs in input order.
+The tool reads the input, splits it into translation units, translates units concurrently, postprocesses the original Latin text with Morpheus by default, and writes original/translation pairs in input order.
 
 ## Prerequisites
 
@@ -192,6 +197,8 @@ Defaults:
 - Chat provider: `ollama`
 - Chat host: `http://localhost:11434`
 - Chat model: `gemma3:27b`
+- Postprocessor: `morpheus`
+- Output format: PDF, chosen by a `.pdf` writer path
 - OpenRouter default host: `https://openrouter.ai`
 - OpenCode default host: `https://opencode.ai`
 - OpenCode default model: `kimi-k2.6`
@@ -294,7 +301,7 @@ model = "kimi-k2.6"
 api_key = ""
 
 [writer]
-path = "output.txt"
+path = "output.pdf"
 
 [log]
 level = "warn"
@@ -351,10 +358,10 @@ CLI is exposed on the user's command path.
 
 ## Running Jobs
 
-Text input to text output:
+Text input to default PDF output:
 
 ```sh
-parallel-translation --reader-path input.txt --writer-path output.txt
+parallel-translation --reader-path input.txt --writer-path output.pdf
 ```
 
 PDF input to PDF output:
@@ -369,7 +376,7 @@ Text input to PDF output:
 parallel-translation --reader-path input.txt --writer-path output.pdf
 ```
 
-PDF input to text output:
+PDF input to text output, only when text output is explicitly requested:
 
 ```sh
 parallel-translation --reader-path input.pdf --writer-path output.txt
@@ -378,50 +385,50 @@ parallel-translation --reader-path input.pdf --writer-path output.txt
 Specific model:
 
 ```sh
-parallel-translation --reader-path input.txt --writer-path output.txt --backend-chat-model gemma3:27
+parallel-translation --reader-path input.txt --writer-path output.pdf --backend-chat-model gemma3:27
 ```
 
 Specific host:
 
 ```sh
-parallel-translation --reader-path input.txt --writer-path output.txt --backend-chat-host http://localhost:11434
+parallel-translation --reader-path input.txt --writer-path output.pdf --backend-chat-host http://localhost:11434
 ```
 
 OpenRouter:
 
 ```sh
-PT_BACKEND_CHAT_API_KEY=... parallel-translation --reader-path input.txt --writer-path output.txt --backend-chat-provider openrouter --backend-chat-model google/gemma-4-31b-it
+PT_BACKEND_CHAT_API_KEY=... parallel-translation --reader-path input.txt --writer-path output.pdf --backend-chat-provider openrouter --backend-chat-model google/gemma-4-31b-it
 ```
 
 OpenRouter Anthropic Messages:
 
 ```sh
-PT_BACKEND_CHAT_API_KEY=... parallel-translation --reader-path input.txt --writer-path output.txt --backend-chat-provider openrouter --backend-chat-model anthropic/claude-sonnet-4
+PT_BACKEND_CHAT_API_KEY=... parallel-translation --reader-path input.txt --writer-path output.pdf --backend-chat-provider openrouter --backend-chat-model anthropic/claude-sonnet-4
 ```
 
 OpenCode:
 
 ```sh
-PT_BACKEND_CHAT_API_KEY=... parallel-translation --reader-path input.txt --writer-path output.txt --backend-chat-provider opencode --backend-chat-model kimi-k2.6
+PT_BACKEND_CHAT_API_KEY=... parallel-translation --reader-path input.txt --writer-path output.pdf --backend-chat-provider opencode --backend-chat-model kimi-k2.6
 ```
 
 Set concurrency. Use `--backend-parallelism 1` unless the user explicitly
 instructs a different value:
 
 ```sh
-parallel-translation --reader-path input.txt --writer-path output.txt --backend-parallelism 1
+parallel-translation --reader-path input.txt --writer-path output.pdf --backend-parallelism 1
 ```
 
-Disable postprocessing:
+Disable postprocessing, only when explicitly requested or isolating file handling:
 
 ```sh
-parallel-translation --reader-path input.txt --writer-path output.txt --postprocessor-provider none
+parallel-translation --reader-path input.txt --writer-path output.pdf --postprocessor-provider none
 ```
 
 Use Morpheus postprocessing with breves:
 
 ```sh
-parallel-translation --reader-path input.txt --writer-path output.txt --postprocessor-provider morpheus --postprocessor-breves
+parallel-translation --reader-path input.txt --writer-path output.pdf --postprocessor-provider morpheus --postprocessor-breves
 ```
 
 ## Autonomous Run Checklist
@@ -431,11 +438,11 @@ Before a real job:
 1. Confirm the binary works: `parallel-translation --help` or `./build/Release/parallel-translation --help`.
 2. Confirm the input file exists.
 3. Confirm the input file extension is `.txt` or `.pdf`; this selects the input format.
-4. Confirm the output path extension is `.txt` or `.pdf`; this selects the output format.
+4. Confirm the output path extension is `.pdf` unless the user explicitly requested `.txt`; this selects the output format.
 5. Avoid overwriting important output files unless explicitly requested.
 6. If using a chat API provider, confirm the external server is reachable, the model is available, and hosted providers have an API key.
 7. Run a smoke test with `--backend-provider pass --postprocessor-provider none`.
-8. Run the real job with `--backend-parallelism 1` unless the user explicitly instructs a different value.
+8. Run the real job with Morpheus postprocessing and `--backend-parallelism 1` unless the user explicitly instructs a different value.
 9. Treat any nonzero exit code as failure and inspect logs/output.
 
 For long jobs, write to a new output filename.
@@ -480,6 +487,8 @@ A nonzero exit code should always be treated as failure — inspect stderr logs 
 
 - Use absolute paths from automation.
 - Keep Python tools in `pipx` or a project virtual environment.
+- Use Morpheus postprocessing for real translation jobs unless explicitly told otherwise.
+- Use PDF output for real translation jobs unless explicitly told otherwise.
 - Use `--backend-parallelism 1` for chat-api-backed jobs unless instructed otherwise.
 - Do not overwrite existing outputs without explicit permission.
 - Prefer smoke tests before real translation.

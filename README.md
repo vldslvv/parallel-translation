@@ -1,6 +1,11 @@
 # parallel-translation
 A CLI tool to create parallel translations
 
+By default, use Morpheus postprocessing for Latin macrons and write
+translations to PDF output unless a text output is explicitly needed. The CLI
+selects formats from file extensions, so choose a `.pdf` writer path for normal
+translation jobs.
+
 ## Configuration
 
 Config file location:
@@ -50,7 +55,7 @@ model = "kimi-k2.6"
 api_key = ""
 
 [writer]
-path = "output.txt"
+path = "output.pdf"
 
 [log]
 level = "warn"
@@ -89,7 +94,7 @@ OpenRouter can be selected without changing `config.toml`:
 ```sh
 PT_BACKEND_CHAT_API_KEY=... parallel-translation \
   --reader-path input.txt \
-  --writer-path output.txt \
+  --writer-path output.pdf \
   --backend-chat-provider openrouter \
   --backend-chat-model google/gemma-4-31b-it
 ```
@@ -104,7 +109,7 @@ OpenRouter's Anthropic Messages endpoint automatically:
 ```sh
 PT_BACKEND_CHAT_API_KEY=... parallel-translation \
   --reader-path input.txt \
-  --writer-path output.txt \
+  --writer-path output.pdf \
   --backend-chat-provider openrouter \
   --backend-chat-model anthropic/claude-sonnet-4
 ```
@@ -114,7 +119,7 @@ OpenCode Go can also be selected without changing `config.toml`:
 ```sh
 PT_BACKEND_CHAT_API_KEY=... parallel-translation \
   --reader-path input.txt \
-  --writer-path output.txt \
+  --writer-path output.pdf \
   --backend-chat-provider opencode \
   --backend-chat-model kimi-k2.6
 ```
@@ -127,7 +132,9 @@ own app config, not this API request.
 Morpheus postprocessing uses the vendored Morpheus Conan recipe. The Makefile
 exports that recipe at the version defined in `conanfile.py` before installing
 dependencies, so no separate Morpheus checkout or directory configuration is
-required.
+required. Morpheus is the default postprocessor; use
+`--postprocessor-provider none` only when explicitly skipping postprocessing or
+isolating file handling in a smoke test.
 
 ## Dependencies
 
@@ -154,9 +161,10 @@ binary uses those private files and does not need the Conan cache at runtime.
 ## Examples
 
 ```sh
-parallel-translation --reader-path input.txt --writer-path output.txt
-parallel-translation --reader-path input.txt --writer-path output.txt --postprocessor-provider none
-parallel-translation --reader-path input.txt --writer-path output.txt --backend-chat-provider openrouter --backend-chat-model google/gemma-4-31b-it
-parallel-translation --reader-path input.txt --writer-path output.txt --backend-chat-provider openrouter --backend-chat-model anthropic/claude-sonnet-4
-parallel-translation --reader-path input.txt --writer-path output.txt --backend-chat-provider opencode --backend-chat-model kimi-k2.6
+parallel-translation --reader-path input.txt --writer-path output.pdf
+parallel-translation --reader-path input.pdf --writer-path output.pdf
+parallel-translation --reader-path input.txt --writer-path output.pdf --backend-chat-provider openrouter --backend-chat-model google/gemma-4-31b-it
+parallel-translation --reader-path input.txt --writer-path output.pdf --backend-chat-provider openrouter --backend-chat-model anthropic/claude-sonnet-4
+parallel-translation --reader-path input.txt --writer-path output.pdf --backend-chat-provider opencode --backend-chat-model kimi-k2.6
+parallel-translation --reader-path input.txt --writer-path output.pdf --postprocessor-provider none
 ```
