@@ -47,7 +47,7 @@ static std::expected<Translator, int> get_translator(const std::string& backend,
     }
     if (backend == "chat-api") {
         try {
-            return make_chat_api_latin_to_english_translator(selected_chat_api_config(cfg));
+            return make_chat_api_latin_to_english_translator(cfg.chat_api);
         } catch (const std::exception& e) {
             spdlog::error("{}", e.what());
             return std::unexpected(exit_code::usage_error);
@@ -161,7 +161,7 @@ int run(int argc, char* argv[]) {
         postprocessor = make_morpheus_macron_translator(config.breves);
     } else if (config.postprocess == "chat-api") {
         try {
-            postprocessor = make_chat_api_macron_translator(selected_chat_api_config(config));
+            postprocessor = make_chat_api_macron_translator(config.chat_api);
         } catch (const std::exception& e) {
             spdlog::error("{}", e.what());
             return exit_code::usage_error;

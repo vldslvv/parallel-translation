@@ -53,8 +53,8 @@ Environment variables override the config file:
 
 `PT_CHAT_PROVIDER` chooses which provider config is active. `PT_CHAT_HOST`,
 `PT_CHAT_MODEL`, and `PT_CHAT_API_KEY` override only that active provider.
-Provider tables are provider-specific schemas; future providers may not use the
-same fields.
+The app derives the provider's API style and endpoint path internally; users
+only configure host, model, and API key.
 
 Command-line options for provider, model, host, API key, log level, and
 parallelism override config-derived values for one run. `--chat-provider`

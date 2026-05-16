@@ -4,6 +4,7 @@
 #include <httplib.h>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
+#include <string_view>
 
 #include <spdlog/spdlog.h>
 
@@ -36,45 +37,91 @@ static std::string trim_right(std::string result) {
     return result;
 }
 
-static std::string chat_api_path(const ChatApiConfig& cfg) {
-    if (cfg.provider == "openrouter")
-        return "/api/v1/chat/completions";
-    if (cfg.provider == "ollama")
-        return "/api/chat";
-    throw std::runtime_error{"chat-api: unknown provider: " + cfg.provider};
+struct ChatApiRequest {
+    httplib::Headers headers;
+    nlohmann::json body;
+};
+
+struct ChatApiStyle {
+    std::string_view name;
+    ChatApiRequest (*make_request)(const ChatApiConfig& cfg, std::string_view prompt,
+                                   std::string_view text);
+    std::string (*response_content)(const std::string& body);
+};
+
+static httplib::Headers auth_headers(const ChatApiConfig& cfg) {
+    httplib::Headers headers;
+    if (!cfg.api_key.empty())
+        headers.emplace("Authorization", "Bearer " + cfg.api_key);
+    return headers;
 }
 
-static std::string response_content(const ChatApiConfig& cfg, const std::string& body) {
+static nlohmann::json chat_messages(std::string_view prompt, std::string_view text) {
+    return nlohmann::json::array({{{"role", "system"}, {"content", std::string{prompt}}},
+                                  {{"role", "user"}, {"content", std::string{text}}}});
+}
+
+static ChatApiRequest make_ollama_chat_request(const ChatApiConfig& cfg, std::string_view prompt,
+                                               std::string_view text) {
+    return ChatApiRequest{.headers = auth_headers(cfg),
+                          .body = {{"model", cfg.model},
+                                   {"messages", chat_messages(prompt, text)},
+                                   {"stream", false}}};
+}
+
+static std::string ollama_chat_response_content(const std::string& body) {
     auto json = nlohmann::json::parse(body);
-    if (cfg.provider == "openrouter")
-        return json["choices"][0]["message"]["content"].get<std::string>();
-    if (cfg.provider == "ollama")
-        return json["message"]["content"].get<std::string>();
-    throw std::runtime_error{"chat-api: unknown provider: " + cfg.provider};
+    return json["message"]["content"].get<std::string>();
+}
+
+static ChatApiRequest make_openai_chat_completions_request(const ChatApiConfig& cfg,
+                                                           std::string_view prompt,
+                                                           std::string_view text) {
+    return ChatApiRequest{.headers = auth_headers(cfg),
+                          .body = {{"model", cfg.model},
+                                   {"messages", chat_messages(prompt, text)},
+                                   {"stream", false}}};
+}
+
+static std::string openai_chat_completions_response_content(const std::string& body) {
+    auto json = nlohmann::json::parse(body);
+    return json["choices"][0]["message"]["content"].get<std::string>();
+}
+
+static const ChatApiStyle& chat_api_style(const ChatApiConfig& cfg) {
+    static const ChatApiStyle ollama_chat{
+        .name = "ollama-chat",
+        .make_request = make_ollama_chat_request,
+        .response_content = ollama_chat_response_content,
+    };
+    static const ChatApiStyle openai_chat_completions{
+        .name = "openai-chat-completions",
+        .make_request = make_openai_chat_completions_request,
+        .response_content = openai_chat_completions_response_content,
+    };
+
+    if (cfg.api_style == ollama_chat.name)
+        return ollama_chat;
+    if (cfg.api_style == openai_chat_completions.name)
+        return openai_chat_completions;
+    throw std::runtime_error{"chat-api: unknown api style: " + cfg.api_style};
 }
 
 Translator make_chat_api_translator(const ChatApiConfig& cfg, const std::string& prompt) {
     if (cfg.provider == "openrouter" && cfg.api_key.empty())
         throw std::runtime_error{"chat-api: OpenRouter requires an API key"};
+    const auto* style = &chat_api_style(cfg);
 
-    return [cfg, prompt](std::string_view text) -> std::string {
+    return [cfg, prompt, style](std::string_view text) -> std::string {
         httplib::Client client{cfg.host};
 
-        nlohmann::json body = {
-            {"model", cfg.model},
-            {"messages",
-             nlohmann::json::array({{{"role", "system"}, {"content", prompt}},
-                                    {{"role", "user"}, {"content", std::string{text}}}})},
-            {"stream", false}};
+        auto request = style->make_request(cfg, prompt, text);
 
-        httplib::Headers headers;
-        if (!cfg.api_key.empty())
-            headers.emplace("Authorization", "Bearer " + cfg.api_key);
-
-        auto path = chat_api_path(cfg);
-        spdlog::debug("chat-api: provider={} POST {} model={} text_len={}\n  request: {}",
-                      cfg.provider, path, cfg.model, text.size(), std::string{text});
-        auto res = client.Post(path, headers, body.dump(), "application/json");
+        spdlog::debug("chat-api: provider={} style={} POST {} model={} text_len={}\n  request: {}",
+                      cfg.provider, style->name, cfg.endpoint_path, cfg.model, text.size(),
+                      std::string{text});
+        auto res =
+            client.Post(cfg.endpoint_path, request.headers, request.body.dump(), "application/json");
 
         if (!res)
             throw std::runtime_error{"chat-api: no response from " + cfg.host};
@@ -84,7 +131,7 @@ Translator make_chat_api_translator(const ChatApiConfig& cfg, const std::string&
 
         spdlog::debug("chat-api: got response status={} body_len={}", res->status,
                       res->body.size());
-        auto result = response_content(cfg, res->body);
+        auto result = style->response_content(res->body);
         spdlog::debug("chat-api: response content: {}", result);
         return trim_right(std::move(result));
     };
