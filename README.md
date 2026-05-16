@@ -75,8 +75,8 @@ Environment variables override the config file:
 `PT_BACKEND_CHAT_PROVIDER` chooses which chat API provider config is active.
 `PT_BACKEND_CHAT_HOST`, `PT_BACKEND_CHAT_MODEL`, and
 `PT_BACKEND_CHAT_API_KEY` override only that active provider.
-The app derives the provider's API style and endpoint path internally; users
-only configure host, model, and API key.
+The app derives the API style and endpoint path internally from provider and
+model; users only configure host, model, and API key.
 
 Command-line options for provider, model, host, API key, log level, and
 parallelism override config-derived values for one run.
@@ -97,6 +97,17 @@ PT_BACKEND_CHAT_API_KEY=... parallel-translation \
 The default OpenRouter host is `https://openrouter.ai`. Override it with
 `--backend-chat-host` or `PT_BACKEND_CHAT_HOST` only when using a compatible
 proxy.
+
+When the active OpenRouter model starts with `anthropic/`, the app uses
+OpenRouter's Anthropic Messages endpoint automatically:
+
+```sh
+PT_BACKEND_CHAT_API_KEY=... parallel-translation \
+  --reader-path input.txt \
+  --writer-path output.txt \
+  --backend-chat-provider openrouter \
+  --backend-chat-model anthropic/claude-sonnet-4
+```
 
 OpenCode Go can also be selected without changing `config.toml`:
 
@@ -146,5 +157,6 @@ binary uses those private files and does not need the Conan cache at runtime.
 parallel-translation --reader-path input.txt --writer-path output.txt
 parallel-translation --reader-path input.txt --writer-path output.txt --postprocessor-provider none
 parallel-translation --reader-path input.txt --writer-path output.txt --backend-chat-provider openrouter --backend-chat-model google/gemma-4-31b-it
+parallel-translation --reader-path input.txt --writer-path output.txt --backend-chat-provider openrouter --backend-chat-model anthropic/claude-sonnet-4
 parallel-translation --reader-path input.txt --writer-path output.txt --backend-chat-provider opencode --backend-chat-model kimi-k2.6
 ```

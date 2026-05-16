@@ -6,6 +6,7 @@
 #include <expected>
 #include <filesystem>
 #include <optional>
+#include <stdexcept>
 #include <string_view>
 #include <toml++/toml.hpp>
 #include <utility>
@@ -27,8 +28,6 @@ struct ProviderInfo {
     std::string_view name;
     std::string_view default_host;
     std::string_view default_model;
-    std::string_view api_style;
-    std::string_view endpoint_path;
 };
 
 struct ProviderUserConfig {
@@ -36,22 +35,21 @@ struct ProviderUserConfig {
     ChatApiUserConfig config;
 };
 
+struct ChatApiRoute {
+    std::string_view api_style;
+    std::string_view endpoint_path;
+};
+
 constexpr std::array<ProviderInfo, 3> providers{{
     {.name = "ollama",
      .default_host = "http://localhost:11434",
-     .default_model = "gemma3:27b",
-     .api_style = "ollama-chat",
-     .endpoint_path = "/api/chat"},
+     .default_model = "gemma3:27b"},
     {.name = "openrouter",
      .default_host = "https://openrouter.ai",
-     .default_model = "google/gemma-4-31b-it",
-     .api_style = "openai-chat-completions",
-     .endpoint_path = "/api/v1/chat/completions"},
+     .default_model = "google/gemma-4-31b-it"},
     {.name = "opencode",
      .default_host = "https://opencode.ai",
-     .default_model = "kimi-k2.6",
-     .api_style = "openai-chat-completions",
-     .endpoint_path = "/zen/go/v1/chat/completions"},
+     .default_model = "kimi-k2.6"},
 }};
 
 struct UserConfig {
@@ -78,6 +76,22 @@ const ProviderInfo* provider_info(std::string_view provider) {
             return &info;
     }
     return nullptr;
+}
+
+ChatApiRoute chat_api_route(std::string_view provider, std::string_view model) {
+    if (provider == "ollama")
+        return {.api_style = "ollama-chat", .endpoint_path = "/api/chat"};
+    if (provider == "openrouter") {
+        if (model.starts_with("anthropic/"))
+            return {.api_style = "anthropic-messages", .endpoint_path = "/api/v1/messages"};
+        return {.api_style = "openai-chat-completions",
+                .endpoint_path = "/api/v1/chat/completions"};
+    }
+    if (provider == "opencode")
+        return {.api_style = "openai-chat-completions",
+                .endpoint_path = "/zen/go/v1/chat/completions"};
+
+    throw std::runtime_error{"chat-api: unknown provider route: " + std::string{provider}};
 }
 
 ChatApiUserConfig default_chat_api_user_config(const ProviderInfo& provider) {
@@ -301,12 +315,13 @@ std::expected<ChatApiConfig, int> selected_provider_config(const UserConfig& cfg
         return std::unexpected(exit_code::usage_error);
     }
 
+    const auto route = chat_api_route(provider->name, selected->config.model);
     return ChatApiConfig{.provider = std::string{provider->name},
                          .host = selected->config.host,
                          .model = selected->config.model,
                          .api_key = selected->config.api_key,
-                         .api_style = std::string{provider->api_style},
-                         .endpoint_path = std::string{provider->endpoint_path}};
+                         .api_style = std::string{route.api_style},
+                         .endpoint_path = std::string{route.endpoint_path}};
 }
 
 void apply_selected_chat_api_config(UserConfig& cfg, const ChatApiConfig& chat_api) {

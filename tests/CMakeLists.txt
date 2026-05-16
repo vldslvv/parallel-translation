@@ -22,7 +22,7 @@ add_executable(test_integration
     ../src/translators/stub.cpp
     ../src/translators/pass.cpp
     ../src/translators/morpheus.cpp
-    ../src/translators/ollama.cpp
+    ../src/translators/chat_api.cpp
     ../src/readers/sentence_splitter.cpp
     ../src/readers/txt.cpp
     ../src/readers/pdf.cpp

@@ -1,4 +1,4 @@
-#include "ollama.hpp"
+#include "chat_api.hpp"
 #include "text/text.hpp"
 
 #include <httplib.h>
@@ -88,6 +88,28 @@ static std::string openai_chat_completions_response_content(const std::string& b
     return json["choices"][0]["message"]["content"].get<std::string>();
 }
 
+static ChatApiRequest make_anthropic_messages_request(const ChatApiConfig& cfg,
+                                                       std::string_view prompt,
+                                                       std::string_view text) {
+    return ChatApiRequest{.headers = auth_headers(cfg),
+                          .body = {{"model", cfg.model},
+                                   {"system", std::string{prompt}},
+                                   {"messages",
+                                    nlohmann::json::array(
+                                        {{{"role", "user"}, {"content", std::string{text}}}})},
+                                   {"stream", false}}};
+}
+
+static std::string anthropic_messages_response_content(const std::string& body) {
+    auto json = nlohmann::json::parse(body);
+    std::string content;
+    for (const auto& block : json["content"]) {
+        if (block.value("type", "") == "text")
+            content += block["text"].get<std::string>();
+    }
+    return content;
+}
+
 static const ChatApiStyle& chat_api_style(const ChatApiConfig& cfg) {
     static const ChatApiStyle ollama_chat{
         .name = "ollama-chat",
@@ -99,11 +121,18 @@ static const ChatApiStyle& chat_api_style(const ChatApiConfig& cfg) {
         .make_request = make_openai_chat_completions_request,
         .response_content = openai_chat_completions_response_content,
     };
+    static const ChatApiStyle anthropic_messages{
+        .name = "anthropic-messages",
+        .make_request = make_anthropic_messages_request,
+        .response_content = anthropic_messages_response_content,
+    };
 
     if (cfg.api_style == ollama_chat.name)
         return ollama_chat;
     if (cfg.api_style == openai_chat_completions.name)
         return openai_chat_completions;
+    if (cfg.api_style == anthropic_messages.name)
+        return anthropic_messages;
     throw std::runtime_error{"chat-api: unknown api style: " + cfg.api_style};
 }
 
@@ -112,9 +141,14 @@ Translator make_chat_api_translator(const ChatApiConfig& cfg, const std::string&
         throw std::runtime_error{"chat-api: OpenRouter requires an API key"};
     if (cfg.provider == "opencode" && cfg.api_key.empty())
         throw std::runtime_error{"chat-api: OpenCode requires an API key"};
-    const auto* style = &chat_api_style(cfg);
+    // chat_api_style returns a reference to a static style object, so this pointer remains valid
+    // after it is captured by the translator lambda below.
+    const ChatApiStyle* style = &chat_api_style(cfg);
 
     return [cfg, prompt, style](std::string_view text) -> std::string {
+        // TODO: Consider reusing an httplib::Client across calls so repeated remote requests can
+        // keep connections alive. If Translator calls become concurrent, guard shared client state
+        // or use one client per worker/thread.
         httplib::Client client{cfg.host};
 
         auto request = style->make_request(cfg, prompt, text);

@@ -17,7 +17,7 @@
 #include "formatters/formatter.hpp"
 #include "readers/reader.hpp"
 #include "translators/morpheus.hpp"
-#include "translators/ollama.hpp"
+#include "translators/chat_api.hpp"
 #include "translators/translator.hpp"
 #include "writers/formatted_writer.hpp"
 #include "writers/pdf.hpp"

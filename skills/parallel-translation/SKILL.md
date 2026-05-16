@@ -208,6 +208,9 @@ curl http://localhost:11434/api/tags
 
 For OpenRouter and OpenCode, require an API key in the provider table, via
 `PT_BACKEND_CHAT_API_KEY`, or via `--backend-chat-api-key`.
+For OpenRouter, model IDs starting with `anthropic/` automatically use
+OpenRouter's Anthropic Messages endpoint. Other OpenRouter models use the
+normal chat-completions endpoint.
 OpenCode uses the OpenAI-compatible `/zen/go/v1/chat/completions` endpoint.
 Use direct API model IDs such as `kimi-k2.6`; the `opencode-go/<model-id>` form
 is for OpenCode's own app config, not this API request.
@@ -388,6 +391,12 @@ OpenRouter:
 
 ```sh
 PT_BACKEND_CHAT_API_KEY=... parallel-translation --reader-path input.txt --writer-path output.txt --backend-chat-provider openrouter --backend-chat-model google/gemma-4-31b-it
+```
+
+OpenRouter Anthropic Messages:
+
+```sh
+PT_BACKEND_CHAT_API_KEY=... parallel-translation --reader-path input.txt --writer-path output.txt --backend-chat-provider openrouter --backend-chat-model anthropic/claude-sonnet-4
 ```
 
 OpenCode:

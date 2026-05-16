@@ -16,7 +16,7 @@
 #include "common/exit_codes.hpp"
 #include "config.hpp"
 #include "test_helpers.hpp"
-#include "translators/ollama.hpp"
+#include "translators/chat_api.hpp"
 
 static const char* INPUT = ASSETS_DIR "/latin_example.txt";
 static const char* OUTPUT = ASSETS_DIR "/latin_example_out.txt";
@@ -232,6 +232,36 @@ TEST_CASE("opencode chat provider resolves config and defaults", "[config]") {
     CHECK(chat.api_key == "from-file");
     CHECK(chat.api_style == "openai-chat-completions");
     CHECK(chat.endpoint_path == "/zen/go/v1/chat/completions");
+
+    std::filesystem::remove_all(config_dir);
+}
+
+TEST_CASE("openrouter anthropic model resolves to anthropic messages", "[config]") {
+    auto config_dir = make_config_dir();
+    std::ofstream config{config_dir / "parallel-translation" / "config.toml"};
+    config << "[backend.chat_api]\n"
+              "provider = \"openrouter\"\n"
+              "\n"
+              "[backend.chat_api.openrouter]\n"
+              "model = \"anthropic/claude-sonnet-4\"\n"
+              "api_key = \"from-file\"\n";
+    config.close();
+
+    EnvVar xdg{"XDG_CONFIG_HOME", config_dir.c_str()};
+    EnvVar provider{"PT_BACKEND_CHAT_PROVIDER", nullptr};
+    EnvVar host{"PT_BACKEND_CHAT_HOST", nullptr};
+    EnvVar model{"PT_BACKEND_CHAT_MODEL", nullptr};
+    EnvVar key{"PT_BACKEND_CHAT_API_KEY", nullptr};
+
+    auto cfg = get_test_config();
+    const auto& chat = cfg.backend.chat_api;
+
+    CHECK(chat.provider == "openrouter");
+    CHECK(chat.host == "https://openrouter.ai");
+    CHECK(chat.model == "anthropic/claude-sonnet-4");
+    CHECK(chat.api_key == "from-file");
+    CHECK(chat.api_style == "anthropic-messages");
+    CHECK(chat.endpoint_path == "/api/v1/messages");
 
     std::filesystem::remove_all(config_dir);
 }
@@ -484,6 +514,42 @@ TEST_CASE("chat api opencode provider posts to chat completions with bearer auth
     CHECK(called);
 }
 
+TEST_CASE("chat api openrouter anthropic style posts to messages with bearer auth",
+          "[translator]") {
+    TestServer test_server;
+    std::atomic_bool called{false};
+
+    test_server.server().Post(
+        "/api/v1/messages", [&](const httplib::Request& req, httplib::Response& res) {
+            called = true;
+            CHECK(req.get_header_value("Authorization") == "Bearer anthropic-key");
+            auto body = nlohmann::json::parse(req.body);
+            CHECK(body["model"] == "anthropic/claude-sonnet-4");
+            CHECK(body["stream"] == false);
+            CHECK(body["system"].get<std::string>().contains("You translate Latin text"));
+            REQUIRE(body["messages"].size() == 1);
+            CHECK(body["messages"][0]["role"] == "user");
+            CHECK(body["messages"][0]["content"] == "Salve");
+            res.set_content(
+                R"({"content":[{"type":"text","text":"Hel"},{"type":"text","text":"lo  "},{"type":"tool_use","id":"ignored"}]})",
+                "application/json");
+        });
+    test_server.start();
+
+    ChatApiConfig cfg;
+    cfg.provider = "openrouter";
+    cfg.host = test_server.host();
+    cfg.model = "anthropic/claude-sonnet-4";
+    cfg.api_key = "anthropic-key";
+    cfg.api_style = "anthropic-messages";
+    cfg.endpoint_path = "/api/v1/messages";
+
+    auto translator = make_chat_api_latin_to_english_translator(cfg);
+
+    CHECK(translator("Salve") == "Hello");
+    CHECK(called);
+}
+
 TEST_CASE("chat api openrouter requires an api key", "[translator]") {
     ChatApiConfig cfg;
     cfg.provider = "openrouter";
@@ -491,6 +557,22 @@ TEST_CASE("chat api openrouter requires an api key", "[translator]") {
     cfg.model = "google/gemma-4-31b-it";
     cfg.api_style = "openai-chat-completions";
     cfg.endpoint_path = "/api/v1/chat/completions";
+
+    try {
+        (void)make_chat_api_latin_to_english_translator(cfg);
+        FAIL("expected missing API key to throw");
+    } catch (const std::runtime_error& e) {
+        CHECK(std::string{e.what()} == "chat-api: OpenRouter requires an API key");
+    }
+}
+
+TEST_CASE("chat api openrouter anthropic style requires an api key", "[translator]") {
+    ChatApiConfig cfg;
+    cfg.provider = "openrouter";
+    cfg.host = "https://openrouter.ai";
+    cfg.model = "anthropic/claude-sonnet-4";
+    cfg.api_style = "anthropic-messages";
+    cfg.endpoint_path = "/api/v1/messages";
 
     try {
         (void)make_chat_api_latin_to_english_translator(cfg);
@@ -581,6 +663,67 @@ TEST_CASE("cli chat provider selects matching provider config before overrides",
                           server_host.c_str(),
                           "--backend-chat-model",
                           "cli-model",
+                          "--backend-chat-api-key",
+                          "cli-key",
+                          "--reader-path",
+                          INPUT,
+                          "--writer-path",
+                          OUTPUT};
+
+    CHECK(run(std::size(argv), const_cast<char**>(argv)) == 0);
+    CHECK(called);
+
+    std::remove(OUTPUT);
+    std::filesystem::remove_all(config_dir);
+}
+
+TEST_CASE("cli openrouter anthropic model override selects messages endpoint", "[integration]") {
+    TestServer test_server;
+    std::atomic_bool called{false};
+
+    test_server.server().Post(
+        "/api/v1/messages", [&](const httplib::Request& req, httplib::Response& res) {
+            called = true;
+            CHECK(req.get_header_value("Authorization") == "Bearer cli-key");
+            auto body = nlohmann::json::parse(req.body);
+            CHECK(body["model"] == "anthropic/claude-sonnet-4");
+            CHECK(body["system"].get<std::string>().contains("You translate Latin text"));
+            REQUIRE(body["messages"].size() == 1);
+            CHECK(body["messages"][0]["role"] == "user");
+            res.set_content(R"({"content":[{"type":"text","text":"Hello friend."}]})",
+                            "application/json");
+        });
+    test_server.start();
+
+    auto config_dir = make_config_dir();
+    std::ofstream config{config_dir / "parallel-translation" / "config.toml"};
+    config << "[backend.chat_api]\n"
+              "provider = \"openrouter\"\n"
+              "\n"
+              "[backend.chat_api.openrouter]\n"
+              "host = \"https://openrouter.invalid\"\n"
+              "model = \"google/gemma-4-31b-it\"\n"
+              "api_key = \"from-file\"\n";
+    config.close();
+
+    EnvVar xdg{"XDG_CONFIG_HOME", config_dir.c_str()};
+    EnvVar provider{"PT_BACKEND_CHAT_PROVIDER", nullptr};
+    EnvVar host{"PT_BACKEND_CHAT_HOST", nullptr};
+    EnvVar model{"PT_BACKEND_CHAT_MODEL", nullptr};
+    EnvVar key{"PT_BACKEND_CHAT_API_KEY", nullptr};
+
+    auto server_host = test_server.host();
+    const char* argv[] = {"app",
+                          "--backend-provider",
+                          "chat-api",
+                          "--postprocessor-provider",
+                          "none",
+                          "--backend-parallelism",
+                          "1",
+                          "--backend-chat-host",
+                          server_host.c_str(),
+                          "--backend-chat-model",
+                          "anthropic/claude-sonnet-4",
                           "--backend-chat-api-key",
                           "cli-key",
                           "--reader-path",
