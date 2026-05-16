@@ -42,8 +42,8 @@ Supported output extensions:
 To specify input or output format, use a path ending in the correct extension:
 
 ```sh
-parallel-translation --input input.txt --output output.pdf
-parallel-translation --input input.pdf --output output.txt
+parallel-translation --reader-path input.txt --writer-path output.pdf
+parallel-translation --reader-path input.pdf --writer-path output.txt
 ```
 
 Before running a job, verify that the input path and output path each end in `.txt` or `.pdf`. Treat missing, misspelled, or unsupported extensions as invalid job setup.
@@ -182,7 +182,7 @@ If not installing, run the built binary directly:
 
 ## Translation Backend
 
-The default backend is `chat-api` with `--chat-provider ollama`. Treat chat API
+The default backend is `chat-api` with `--backend-chat-provider ollama`. Treat chat API
 providers as external services owned outside this system. Do not install, start,
 stop, restart, configure, or pull models while using this skill. Only point
 `parallel-translation` at an already available endpoint and selected model.
@@ -193,9 +193,12 @@ Defaults:
 - Chat host: `http://localhost:11434`
 - Chat model: `gemma3:27b`
 - OpenRouter default host: `https://openrouter.ai`
-- Config can store both `[ollama]` and `[openrouter]`; the selected provider
-  chooses which config is active for the run. Treat provider tables as
-  provider-specific schemas, not a generic provider map.
+- OpenCode default host: `https://opencode.ai`
+- OpenCode default model: `kimi-k2.6`
+- Config can store `[backend.chat_api.ollama]`,
+  `[backend.chat_api.openrouter]`, and `[backend.chat_api.opencode]`; the
+  selected provider chooses which config is active for the run. Treat provider
+  tables as provider-specific schemas, not a generic provider map.
 
 Check local Ollama reachability before long jobs:
 
@@ -203,8 +206,11 @@ Check local Ollama reachability before long jobs:
 curl http://localhost:11434/api/tags
 ```
 
-For OpenRouter, require an API key in `[openrouter]`, via `PT_CHAT_API_KEY`, or
-via `--chat-api-key`.
+For OpenRouter and OpenCode, require an API key in the provider table, via
+`PT_BACKEND_CHAT_API_KEY`, or via `--backend-chat-api-key`.
+OpenCode uses the OpenAI-compatible `/zen/go/v1/chat/completions` endpoint.
+Use direct API model IDs such as `kimi-k2.6`; the `opencode-go/<model-id>` form
+is for OpenCode's own app config, not this API request.
 If the selected model is missing or the provider is unreachable, report that the
 chat API provider is not ready and ask the user or provider operator to make the
 service/model available. Do not remediate it from this skill.
@@ -212,7 +218,7 @@ service/model available. Do not remediate it from this skill.
 For smoke tests that must not call an LLM or Morpheus, use:
 
 ```sh
---backend pass --postprocess none
+--backend-provider pass --postprocessor-provider none
 ```
 
 The `pass` backend copies input text as the translation. This verifies paths, output format, and basic execution.
@@ -221,16 +227,16 @@ The `pass` backend copies input text as the translation. This verifies paths, ou
 
 | Backend | Command | Description |
 |---|---|---|
-| `chat-api` (default) | `--backend chat-api` | Calls the configured chat API provider for real LLM translation |
-| `pass` | `--backend pass` | Copies input as "translation" — good for smoke tests |
-| `stub` | `--backend stub` | Replaces every word with `Stub` — good for pipeline testing |
+| `chat-api` (default) | `--backend-provider chat-api` | Calls the configured chat API provider for real LLM translation |
+| `pass` | `--backend-provider pass` | Copies input as "translation" — good for smoke tests |
+| `stub` | `--backend-provider stub` | Replaces every word with `Stub` — good for pipeline testing |
 
 | Postprocessor | Command | Description |
 |---|---|---|
-| `morpheus` (default) | `--postprocess morpheus` | Adds Latin macrons via vendored Morpheus engine |
-| `morpheus` + breves | `--postprocess morpheus --breves` | Morpheus with breve marks for short vowels |
-| `chat-api` | `--postprocess chat-api` | Uses the configured chat API provider for macron insertion |
-| `none` | `--postprocess none` | Skip postprocessing entirely |
+| `morpheus` (default) | `--postprocessor-provider morpheus` | Adds Latin macrons via vendored Morpheus engine |
+| `morpheus` + breves | `--postprocessor-provider morpheus --postprocessor-breves` | Morpheus with breve marks for short vowels |
+| `chat-api` | `--postprocessor-provider chat-api` | Uses the configured chat API provider for macron insertion |
+| `none` | `--postprocessor-provider none` | Skip postprocessing entirely |
 
 ## CLI Reference
 
@@ -253,23 +259,39 @@ $HOME/.config/parallel-translation/config.toml
 Example config:
 
 ```toml
-[chat_api]
+[reader]
+path = "input.txt"
+
+[postprocessing]
+provider = "morpheus"
+breves = false
+
+[backend]
+provider = "chat-api"
+source_lang = "la"
+target_lang = "en"
+parallelism = 1
+
+[backend.chat_api]
 provider = "ollama"
 
-[ollama]
+[backend.chat_api.ollama]
 host = "http://localhost:11434"
 model = "gemma3:27b"
 api_key = ""
 
-[openrouter]
+[backend.chat_api.openrouter]
 host = "https://openrouter.ai"
 model = "google/gemma-4-31b-it"
 api_key = ""
 
-[translation]
-source_lang = "la"
-target_lang = "en"
-parallelism = 1
+[backend.chat_api.opencode]
+host = "https://opencode.ai"
+model = "kimi-k2.6"
+api_key = ""
+
+[writer]
+path = "output.txt"
 
 [log]
 level = "warn"
@@ -277,24 +299,31 @@ level = "warn"
 
 Environment variables override the config file:
 
-- `PT_CHAT_PROVIDER`
-- `PT_CHAT_HOST`
-- `PT_CHAT_MODEL`
-- `PT_CHAT_API_KEY`
-- `PT_SOURCE_LANG`
-- `PT_TARGET_LANG`
+- `PT_READER_PATH`
+- `PT_WRITER_PATH`
+- `PT_BACKEND_PROVIDER`
+- `PT_BACKEND_CHAT_PROVIDER`
+- `PT_BACKEND_CHAT_HOST`
+- `PT_BACKEND_CHAT_MODEL`
+- `PT_BACKEND_CHAT_API_KEY`
+- `PT_BACKEND_SOURCE_LANG`
+- `PT_BACKEND_TARGET_LANG`
 - `PT_LOG_LEVEL`
-- `PT_PARALLELISM`
+- `PT_BACKEND_PARALLELISM`
+- `PT_POSTPROCESSOR_PROVIDER`
+- `PT_POSTPROCESSOR_BREVES`
 
-`PT_CHAT_PROVIDER` selects the active provider config. `PT_CHAT_HOST`,
-`PT_CHAT_MODEL`, and `PT_CHAT_API_KEY` override only that active provider.
-Provider tables are provider-specific schemas; do not assume future providers
-will use the same fields.
+`PT_BACKEND_CHAT_PROVIDER` selects the active provider config.
+`PT_BACKEND_CHAT_HOST`, `PT_BACKEND_CHAT_MODEL`, and
+`PT_BACKEND_CHAT_API_KEY` override only that active provider. Provider tables
+are provider-specific schemas; do not assume future providers will use the same
+fields.
 
 Command-line options for provider, model, host, API key, log level, and
-parallelism override config-derived values for one run. `--chat-provider`
-selects the active provider first, then `--chat-host`, `--chat-model`, and
-`--chat-api-key` apply to that provider.
+parallelism override config-derived values for one run.
+`--backend-chat-provider` selects the active provider first, then
+`--backend-chat-host`, `--backend-chat-model`, and `--backend-chat-api-key`
+apply to that provider.
 
 Morpheus postprocessing uses the vendored Morpheus Conan recipe at the version
 defined in `conanfile.py`. No Morpheus directory configuration is supported.
@@ -322,62 +351,68 @@ CLI is exposed on the user's command path.
 Text input to text output:
 
 ```sh
-parallel-translation --input input.txt --output output.txt
+parallel-translation --reader-path input.txt --writer-path output.txt
 ```
 
 PDF input to PDF output:
 
 ```sh
-parallel-translation --input input.pdf --output output.pdf
+parallel-translation --reader-path input.pdf --writer-path output.pdf
 ```
 
 Text input to PDF output:
 
 ```sh
-parallel-translation --input input.txt --output output.pdf
+parallel-translation --reader-path input.txt --writer-path output.pdf
 ```
 
 PDF input to text output:
 
 ```sh
-parallel-translation --input input.pdf --output output.txt
+parallel-translation --reader-path input.pdf --writer-path output.txt
 ```
 
 Specific model:
 
 ```sh
-parallel-translation --input input.txt --output output.txt --chat-model gemma3:27
+parallel-translation --reader-path input.txt --writer-path output.txt --backend-chat-model gemma3:27
 ```
 
 Specific host:
 
 ```sh
-parallel-translation --input input.txt --output output.txt --chat-host http://localhost:11434
+parallel-translation --reader-path input.txt --writer-path output.txt --backend-chat-host http://localhost:11434
 ```
 
 OpenRouter:
 
 ```sh
-PT_CHAT_API_KEY=... parallel-translation --input input.txt --output output.txt --chat-provider openrouter --chat-model google/gemma-4-31b-it
+PT_BACKEND_CHAT_API_KEY=... parallel-translation --reader-path input.txt --writer-path output.txt --backend-chat-provider openrouter --backend-chat-model google/gemma-4-31b-it
 ```
 
-Set concurrency. Use `--parallelism 1` unless the user explicitly instructs a
-different value:
+OpenCode:
 
 ```sh
-parallel-translation --input input.txt --output output.txt --parallelism 1
+PT_BACKEND_CHAT_API_KEY=... parallel-translation --reader-path input.txt --writer-path output.txt --backend-chat-provider opencode --backend-chat-model kimi-k2.6
+```
+
+Set concurrency. Use `--backend-parallelism 1` unless the user explicitly
+instructs a different value:
+
+```sh
+parallel-translation --reader-path input.txt --writer-path output.txt --backend-parallelism 1
 ```
 
 Disable postprocessing:
 
 ```sh
-parallel-translation --input input.txt --output output.txt --postprocess none
+parallel-translation --reader-path input.txt --writer-path output.txt --postprocessor-provider none
 ```
 
 Use Morpheus postprocessing with breves:
 
 ```sh
-parallel-translation --input input.txt --output output.txt --postprocess morpheus --breves
+parallel-translation --reader-path input.txt --writer-path output.txt --postprocessor-provider morpheus --postprocessor-breves
 ```
 
 ## Autonomous Run Checklist
@@ -389,9 +424,9 @@ Before a real job:
 3. Confirm the input file extension is `.txt` or `.pdf`; this selects the input format.
 4. Confirm the output path extension is `.txt` or `.pdf`; this selects the output format.
 5. Avoid overwriting important output files unless explicitly requested.
-6. If using a chat API provider, confirm the external server is reachable, the model is available, and OpenRouter has an API key.
-7. Run a smoke test with `--backend pass --postprocess none`.
-8. Run the real job with `--parallelism 1` unless the user explicitly instructs a different value.
+6. If using a chat API provider, confirm the external server is reachable, the model is available, and hosted providers have an API key.
+7. Run a smoke test with `--backend-provider pass --postprocessor-provider none`.
+8. Run the real job with `--backend-parallelism 1` unless the user explicitly instructs a different value.
 9. Treat any nonzero exit code as failure and inspect logs/output.
 
 For long jobs, write to a new output filename.
@@ -412,10 +447,10 @@ Common failure causes:
 If a job fails:
 
 1. Re-run with `--log-level debug`.
-2. Reduce `--parallelism` to `1`.
+2. Reduce `--backend-parallelism` to `1`.
 3. Verify input and output paths.
 4. Check chat API provider reachability, model availability, and API key configuration.
-5. Try `--backend pass --postprocess none` to isolate file handling from LLM behavior.
+5. Try `--backend-provider pass --postprocessor-provider none` to isolate file handling from LLM behavior.
 
 ## Exit Codes
 
@@ -436,7 +471,7 @@ A nonzero exit code should always be treated as failure — inspect stderr logs 
 
 - Use absolute paths from automation.
 - Keep Python tools in `pipx` or a project virtual environment.
-- Use `--parallelism 1` for chat-api-backed jobs unless instructed otherwise.
+- Use `--backend-parallelism 1` for chat-api-backed jobs unless instructed otherwise.
 - Do not overwrite existing outputs without explicit permission.
 - Prefer smoke tests before real translation.
 - Manually inspect PDF output when possible; PDF formatting depends on document structure.

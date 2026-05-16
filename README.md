@@ -44,6 +44,11 @@ host = "https://openrouter.ai"
 model = "google/gemma-4-31b-it"
 api_key = ""
 
+[backend.chat_api.opencode]
+host = "https://opencode.ai"
+model = "kimi-k2.6"
+api_key = ""
+
 [writer]
 path = "output.txt"
 
@@ -93,6 +98,21 @@ The default OpenRouter host is `https://openrouter.ai`. Override it with
 `--backend-chat-host` or `PT_BACKEND_CHAT_HOST` only when using a compatible
 proxy.
 
+OpenCode Go can also be selected without changing `config.toml`:
+
+```sh
+PT_BACKEND_CHAT_API_KEY=... parallel-translation \
+  --reader-path input.txt \
+  --writer-path output.txt \
+  --backend-chat-provider opencode \
+  --backend-chat-model kimi-k2.6
+```
+
+The default OpenCode host is `https://opencode.ai`, using the
+`/zen/go/v1/chat/completions` OpenAI-compatible endpoint. Use direct API model
+IDs such as `kimi-k2.6`; the `opencode-go/<model-id>` form is for OpenCode's
+own app config, not this API request.
+
 Morpheus postprocessing uses the vendored Morpheus Conan recipe. The Makefile
 exports that recipe at the version defined in `conanfile.py` before installing
 dependencies, so no separate Morpheus checkout or directory configuration is
@@ -126,4 +146,5 @@ binary uses those private files and does not need the Conan cache at runtime.
 parallel-translation --reader-path input.txt --writer-path output.txt
 parallel-translation --reader-path input.txt --writer-path output.txt --postprocessor-provider none
 parallel-translation --reader-path input.txt --writer-path output.txt --backend-chat-provider openrouter --backend-chat-model google/gemma-4-31b-it
+parallel-translation --reader-path input.txt --writer-path output.txt --backend-chat-provider opencode --backend-chat-model kimi-k2.6
 ```

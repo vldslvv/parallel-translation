@@ -36,25 +36,7 @@ struct ProviderUserConfig {
     ChatApiUserConfig config;
 };
 
-struct UserConfig {
-    ReaderConfig reader;
-    PostprocessingConfig postprocessing;
-    BackendConfig backend;
-    WriterConfig writer;
-    std::string backend_chat_api_provider = "ollama";
-    std::array<ProviderUserConfig, 2> chat_api;
-    std::string log_level = "warn";
-};
-
-struct CliOverrides {
-    std::string chat_provider;
-    std::string chat_host;
-    std::string chat_model;
-    std::string chat_api_key;
-    std::string log_level;
-};
-
-constexpr std::array<ProviderInfo, 2> providers{{
+constexpr std::array<ProviderInfo, 3> providers{{
     {.name = "ollama",
      .default_host = "http://localhost:11434",
      .default_model = "gemma3:27b",
@@ -65,7 +47,30 @@ constexpr std::array<ProviderInfo, 2> providers{{
      .default_model = "google/gemma-4-31b-it",
      .api_style = "openai-chat-completions",
      .endpoint_path = "/api/v1/chat/completions"},
+    {.name = "opencode",
+     .default_host = "https://opencode.ai",
+     .default_model = "kimi-k2.6",
+     .api_style = "openai-chat-completions",
+     .endpoint_path = "/zen/go/v1/chat/completions"},
 }};
+
+struct UserConfig {
+    ReaderConfig reader;
+    PostprocessingConfig postprocessing;
+    BackendConfig backend;
+    WriterConfig writer;
+    std::string backend_chat_api_provider = "ollama";
+    std::array<ProviderUserConfig, providers.size()> chat_api;
+    std::string log_level = "warn";
+};
+
+struct CliOverrides {
+    std::string chat_provider;
+    std::string chat_host;
+    std::string chat_model;
+    std::string chat_api_key;
+    std::string log_level;
+};
 
 const ProviderInfo* provider_info(std::string_view provider) {
     for (const auto& info : providers) {
@@ -258,7 +263,7 @@ std::expected<CliOverrides, int> parse_cli_config(int argc, char* argv[], UserCo
     app.add_flag("--postprocessor-breves", cfg.postprocessing.breves,
                  "Mark short vowels with a breve (morpheus only)");
     app.add_option("--backend-chat-provider", cli.chat_provider,
-                   "Backend Chat API provider: ollama, openrouter");
+                   "Backend Chat API provider: ollama, openrouter, opencode");
     app.add_option("--backend-chat-host", cli.chat_host, "Backend Chat API host URL");
     app.add_option("--backend-chat-model", cli.chat_model, "Backend Chat API model name");
     app.add_option("--backend-chat-api-key", cli.chat_api_key, "Backend Chat API key");

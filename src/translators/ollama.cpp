@@ -110,6 +110,8 @@ static const ChatApiStyle& chat_api_style(const ChatApiConfig& cfg) {
 Translator make_chat_api_translator(const ChatApiConfig& cfg, const std::string& prompt) {
     if (cfg.provider == "openrouter" && cfg.api_key.empty())
         throw std::runtime_error{"chat-api: OpenRouter requires an API key"};
+    if (cfg.provider == "opencode" && cfg.api_key.empty())
+        throw std::runtime_error{"chat-api: OpenCode requires an API key"};
     const auto* style = &chat_api_style(cfg);
 
     return [cfg, prompt, style](std::string_view text) -> std::string {

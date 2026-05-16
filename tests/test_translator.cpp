@@ -207,6 +207,35 @@ TEST_CASE("defaults chat api host by provider", "[config]") {
     std::filesystem::remove_all(config_dir);
 }
 
+TEST_CASE("opencode chat provider resolves config and defaults", "[config]") {
+    auto config_dir = make_config_dir();
+    std::ofstream config{config_dir / "parallel-translation" / "config.toml"};
+    config << "[backend.chat_api]\n"
+              "provider = \"opencode\"\n"
+              "\n"
+              "[backend.chat_api.opencode]\n"
+              "api_key = \"from-file\"\n";
+    config.close();
+
+    EnvVar xdg{"XDG_CONFIG_HOME", config_dir.c_str()};
+    EnvVar provider{"PT_BACKEND_CHAT_PROVIDER", nullptr};
+    EnvVar host{"PT_BACKEND_CHAT_HOST", nullptr};
+    EnvVar model{"PT_BACKEND_CHAT_MODEL", nullptr};
+    EnvVar key{"PT_BACKEND_CHAT_API_KEY", nullptr};
+
+    auto cfg = get_test_config();
+    const auto& chat = cfg.backend.chat_api;
+
+    CHECK(chat.provider == "opencode");
+    CHECK(chat.host == "https://opencode.ai");
+    CHECK(chat.model == "kimi-k2.6");
+    CHECK(chat.api_key == "from-file");
+    CHECK(chat.api_style == "openai-chat-completions");
+    CHECK(chat.endpoint_path == "/zen/go/v1/chat/completions");
+
+    std::filesystem::remove_all(config_dir);
+}
+
 TEST_CASE("unsupported reader extension is rejected", "[config]") {
     auto config_dir = make_config_dir();
     EnvVar xdg{"XDG_CONFIG_HOME", config_dir.c_str()};
@@ -423,6 +452,38 @@ TEST_CASE("chat api openrouter provider posts to chat completions with bearer au
     CHECK(called);
 }
 
+TEST_CASE("chat api opencode provider posts to chat completions with bearer auth",
+          "[translator]") {
+    TestServer test_server;
+    std::atomic_bool called{false};
+
+    test_server.server().Post(
+        "/zen/go/v1/chat/completions", [&](const httplib::Request& req, httplib::Response& res) {
+            called = true;
+            CHECK(req.get_header_value("Authorization") == "Bearer opencode-key");
+            auto body = nlohmann::json::parse(req.body);
+            CHECK(body["model"] == "kimi-k2.6");
+            CHECK(body["stream"] == false);
+            CHECK(body["messages"][0]["role"] == "system");
+            CHECK(body["messages"][1]["content"] == "Salve");
+            res.set_content(R"({"choices":[{"message":{"content":"Hello"}}]})", "application/json");
+        });
+    test_server.start();
+
+    ChatApiConfig cfg;
+    cfg.provider = "opencode";
+    cfg.host = test_server.host();
+    cfg.model = "kimi-k2.6";
+    cfg.api_key = "opencode-key";
+    cfg.api_style = "openai-chat-completions";
+    cfg.endpoint_path = "/zen/go/v1/chat/completions";
+
+    auto translator = make_chat_api_latin_to_english_translator(cfg);
+
+    CHECK(translator("Salve") == "Hello");
+    CHECK(called);
+}
+
 TEST_CASE("chat api openrouter requires an api key", "[translator]") {
     ChatApiConfig cfg;
     cfg.provider = "openrouter";
@@ -436,6 +497,22 @@ TEST_CASE("chat api openrouter requires an api key", "[translator]") {
         FAIL("expected missing API key to throw");
     } catch (const std::runtime_error& e) {
         CHECK(std::string{e.what()} == "chat-api: OpenRouter requires an API key");
+    }
+}
+
+TEST_CASE("chat api opencode requires an api key", "[translator]") {
+    ChatApiConfig cfg;
+    cfg.provider = "opencode";
+    cfg.host = "https://opencode.ai";
+    cfg.model = "kimi-k2.6";
+    cfg.api_style = "openai-chat-completions";
+    cfg.endpoint_path = "/zen/go/v1/chat/completions";
+
+    try {
+        (void)make_chat_api_latin_to_english_translator(cfg);
+        FAIL("expected missing API key to throw");
+    } catch (const std::runtime_error& e) {
+        CHECK(std::string{e.what()} == "chat-api: OpenCode requires an API key");
     }
 }
 
@@ -506,6 +583,69 @@ TEST_CASE("cli chat provider selects matching provider config before overrides",
                           "cli-model",
                           "--backend-chat-api-key",
                           "cli-key",
+                          "--reader-path",
+                          INPUT,
+                          "--writer-path",
+                          OUTPUT};
+
+    CHECK(run(std::size(argv), const_cast<char**>(argv)) == 0);
+    CHECK(called);
+
+    std::remove(OUTPUT);
+    std::filesystem::remove_all(config_dir);
+}
+
+TEST_CASE("cli chat provider selects opencode config before overrides", "[integration]") {
+    TestServer test_server;
+    std::atomic_bool called{false};
+
+    test_server.server().Post(
+        "/zen/go/v1/chat/completions", [&](const httplib::Request& req, httplib::Response& res) {
+            called = true;
+            CHECK(req.get_header_value("Authorization") == "Bearer cli-opencode-key");
+            auto body = nlohmann::json::parse(req.body);
+            CHECK(body["model"] == "cli-opencode-model");
+            res.set_content(R"({"choices":[{"message":{"content":"Hello"}}]})", "application/json");
+        });
+    test_server.start();
+
+    auto config_dir = make_config_dir();
+    std::ofstream config{config_dir / "parallel-translation" / "config.toml"};
+    config << "[backend.chat_api]\n"
+              "provider = \"ollama\"\n"
+              "\n"
+              "[backend.chat_api.ollama]\n"
+              "host = \"http://ollama.invalid\"\n"
+              "model = \"llama3\"\n"
+              "\n"
+              "[backend.chat_api.opencode]\n"
+              "host = \"https://opencode.invalid\"\n"
+              "model = \"kimi-k2.6\"\n"
+              "api_key = \"from-file\"\n";
+    config.close();
+
+    EnvVar xdg{"XDG_CONFIG_HOME", config_dir.c_str()};
+    EnvVar provider{"PT_BACKEND_CHAT_PROVIDER", nullptr};
+    EnvVar host{"PT_BACKEND_CHAT_HOST", nullptr};
+    EnvVar model{"PT_BACKEND_CHAT_MODEL", nullptr};
+    EnvVar key{"PT_BACKEND_CHAT_API_KEY", nullptr};
+
+    auto server_host = test_server.host();
+    const char* argv[] = {"app",
+                          "--backend-provider",
+                          "chat-api",
+                          "--postprocessor-provider",
+                          "none",
+                          "--backend-parallelism",
+                          "1",
+                          "--backend-chat-provider",
+                          "opencode",
+                          "--backend-chat-host",
+                          server_host.c_str(),
+                          "--backend-chat-model",
+                          "cli-opencode-model",
+                          "--backend-chat-api-key",
+                          "cli-opencode-key",
                           "--reader-path",
                           INPUT,
                           "--writer-path",
