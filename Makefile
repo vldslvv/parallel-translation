@@ -34,6 +34,8 @@ help: ## Show this help message
 	@echo "                               Example: make run ARGS=\"--input in.txt --output out.txt\""
 	@echo "  PROFILE_INPUT                Input text for profile targets"
 	@echo "  PROFILE_OUTPUT               Output path for profile targets"
+	@echo "  PROFILE_BUILD                Named profiling build and result set"
+	@echo "                               Example: make profile-cpu PROFILE_BUILD=cached-paths"
 	@echo "  PROFILE_PARALLELISM          Backend parallelism for profile targets"
 	@echo "  PROFILE_BACKEND              Backend provider for profile targets"
 	@echo "  PROFILE_POSTPROCESSOR        Postprocessor provider for profile targets"
