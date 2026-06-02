@@ -118,7 +118,7 @@ define clear_profile_compare_stat_results_if_needed
 endef
 
 .PHONY: profile-build
-profile-build: conan-profile morpheus-recipe ## Build optimized binary with debug symbols
+profile-build: .conan-profile .morpheus-recipe ## Build optimized binary with debug symbols
 	$(CONAN) install . --build=missing -of $(PROFILE_DIR) -s build_type=$(PROFILE_BUILD_TYPE) -s compiler.cppstd=$(CONAN_CPPSTD)
 	cmake -B $(PROFILE_DIR) \
 		-DCMAKE_TOOLCHAIN_FILE=$(PROFILE_GENERATORS_DIR)/conan_toolchain.cmake \
@@ -173,20 +173,6 @@ profile-report-syscalls: ## Print saved strace syscall report for selected PROFI
 .PHONY: profile-run-suite
 profile-run-suite: profile-run-time profile-run-cpu profile-run-memory profile-run-syscalls ## Run all profiling tools for selected PROFILE_BUILD
 
-.PHONY: profile-compare-artifacts-output
-profile-compare-artifacts-output:
-	$(call require_profile_compare_builds,$@)
-	$(call require_profile_compare_file,$(PROFILE_COMPARE_A_TIME_OUTPUT))
-	$(call require_profile_compare_file,$(PROFILE_COMPARE_B_TIME_OUTPUT))
-	diff -u "$(PROFILE_COMPARE_A_TIME_OUTPUT)" "$(PROFILE_COMPARE_B_TIME_OUTPUT)"
-
-.PHONY: profile-compare-artifacts-time
-profile-compare-artifacts-time:
-	$(call require_profile_compare_builds,$@)
-	$(call require_profile_compare_file,$(PROFILE_COMPARE_A_HYPERFINE_JSON))
-	$(call require_profile_compare_file,$(PROFILE_COMPARE_B_HYPERFINE_JSON))
-	@jq -n -r --arg a "$(PROFILE_BUILD_A)" --arg b "$(PROFILE_BUILD_B)" --slurpfile before "$(PROFILE_COMPARE_A_HYPERFINE_JSON)" --slurpfile after "$(PROFILE_COMPARE_B_HYPERFINE_JSON)" 'def row($$name; $$x; $$y): "\($$name)\t\($$x)\t\($$y)\t\($$y - $$x)\t\(if $$x == 0 then "n/a" else (($$y - $$x) / $$x * 100) end)"; ($$before[0].results[0]) as $$x | ($$after[0].results[0]) as $$y | "metric\t\($$a)\t\($$b)\tdelta\tdelta_pct", row("mean"; $$x.mean; $$y.mean), row("stddev"; $$x.stddev; $$y.stddev), row("median"; $$x.median; $$y.median), row("min"; $$x.min; $$y.min), row("max"; $$x.max; $$y.max)'
-
 .PHONY: profile-compare-stat
 profile-compare-stat: ## Interleaved benchmark and hypothesis test for PROFILE_BUILD_A vs PROFILE_BUILD_B
 	$(call require_profile_compare_builds,$@)
@@ -208,32 +194,27 @@ profile-compare-stat: ## Interleaved benchmark and hypothesis test for PROFILE_B
 		--min-speedup "$(PROFILE_COMPARE_MIN_SPEEDUP)" \
 		--alpha "$(PROFILE_COMPARE_ALPHA)"
 
-.PHONY: profile-compare-artifacts-cpu
-profile-compare-artifacts-cpu:
+.PHONY: profile-compare-artifacts
+profile-compare-artifacts: ## Compare saved profiling artifacts for PROFILE_BUILD_A and PROFILE_BUILD_B
 	$(call require_profile_compare_builds,$@)
+	$(call require_profile_compare_file,$(PROFILE_COMPARE_A_TIME_OUTPUT))
+	$(call require_profile_compare_file,$(PROFILE_COMPARE_B_TIME_OUTPUT))
+	$(call require_profile_compare_file,$(PROFILE_COMPARE_A_HYPERFINE_JSON))
+	$(call require_profile_compare_file,$(PROFILE_COMPARE_B_HYPERFINE_JSON))
 	$(call require_profile_compare_file,$(PROFILE_COMPARE_A_PERF_DATA))
 	$(call require_profile_compare_file,$(PROFILE_COMPARE_B_PERF_DATA))
-	perf diff --compute delta --sort comm,dso,symbol "$(PROFILE_COMPARE_A_PERF_DATA)" "$(PROFILE_COMPARE_B_PERF_DATA)"
-
-.PHONY: profile-compare-artifacts-memory
-profile-compare-artifacts-memory:
-	$(call require_profile_compare_builds,$@)
 	$(call require_profile_compare_file,$(PROFILE_COMPARE_A_HEAPTRACK_DATA))
 	$(call require_profile_compare_file,$(PROFILE_COMPARE_B_HEAPTRACK_DATA))
+	$(call require_profile_compare_file,$(PROFILE_COMPARE_A_STRACE_SUMMARY))
+	$(call require_profile_compare_file,$(PROFILE_COMPARE_B_STRACE_SUMMARY))
+	diff -u "$(PROFILE_COMPARE_A_TIME_OUTPUT)" "$(PROFILE_COMPARE_B_TIME_OUTPUT)"
+	@jq -n -r --arg a "$(PROFILE_BUILD_A)" --arg b "$(PROFILE_BUILD_B)" --slurpfile before "$(PROFILE_COMPARE_A_HYPERFINE_JSON)" --slurpfile after "$(PROFILE_COMPARE_B_HYPERFINE_JSON)" 'def row($$name; $$x; $$y): "\($$name)\t\($$x)\t\($$y)\t\($$y - $$x)\t\(if $$x == 0 then "n/a" else (($$y - $$x) / $$x * 100) end)"; ($$before[0].results[0]) as $$x | ($$after[0].results[0]) as $$y | "metric\t\($$a)\t\($$b)\tdelta\tdelta_pct", row("mean"; $$x.mean; $$y.mean), row("stddev"; $$x.stddev; $$y.stddev), row("median"; $$x.median; $$y.median), row("min"; $$x.min; $$y.min), row("max"; $$x.max; $$y.max)'
+	perf diff --compute delta --sort comm,dso,symbol "$(PROFILE_COMPARE_A_PERF_DATA)" "$(PROFILE_COMPARE_B_PERF_DATA)"
 	@echo "== $(PROFILE_BUILD_A) =="
 	heaptrack_print "$(PROFILE_COMPARE_A_HEAPTRACK_DATA)" | sed -n '1,80p'
 	@echo "== $(PROFILE_BUILD_B) =="
 	heaptrack_print "$(PROFILE_COMPARE_B_HEAPTRACK_DATA)" | sed -n '1,80p'
-
-.PHONY: profile-compare-artifacts-syscalls
-profile-compare-artifacts-syscalls:
-	$(call require_profile_compare_builds,$@)
-	$(call require_profile_compare_file,$(PROFILE_COMPARE_A_STRACE_SUMMARY))
-	$(call require_profile_compare_file,$(PROFILE_COMPARE_B_STRACE_SUMMARY))
 	diff -u "$(PROFILE_COMPARE_A_STRACE_SUMMARY)" "$(PROFILE_COMPARE_B_STRACE_SUMMARY)" || true
-
-.PHONY: profile-compare-artifacts
-profile-compare-artifacts: profile-compare-artifacts-output profile-compare-artifacts-time profile-compare-artifacts-cpu profile-compare-artifacts-memory profile-compare-artifacts-syscalls ## Compare saved profiling artifacts for PROFILE_BUILD_A and PROFILE_BUILD_B
 
 .PHONY: profile-clean
 profile-clean: ## Remove profiling outputs

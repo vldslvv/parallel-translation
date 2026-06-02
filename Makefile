@@ -4,6 +4,7 @@ RELEASE_DIR := $(BUILD_DIR)/Release
 PREFIX      := $(HOME)/.local
 
 .DEFAULT_GOAL := build
+.SUFFIXES:
 
 include $(sort $(wildcard mk/*.mk))
 

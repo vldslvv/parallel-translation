@@ -4,13 +4,13 @@
 all: build ## Debug build (default)
 
 .PHONY: build
-build: conan-profile morpheus-recipe ## Build the debug binary
+build: .conan-profile .morpheus-recipe ## Build the debug binary
 	$(CONAN) install . --build=missing -s build_type=Debug -s compiler.cppstd=$(CONAN_CPPSTD)
 	cmake -B $(DEBUG_DIR) -DCMAKE_TOOLCHAIN_FILE=$(DEBUG_DIR)/generators/conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Debug
 	cmake --build $(DEBUG_DIR)
 
 .PHONY: release
-release: conan-profile morpheus-recipe ## Build the optimized release binary
+release: .conan-profile .morpheus-recipe ## Build the optimized release binary
 	$(CONAN) install . --build=missing -s build_type=Release -s compiler.cppstd=$(CONAN_CPPSTD)
 	cmake -B $(RELEASE_DIR) -DCMAKE_TOOLCHAIN_FILE=$(RELEASE_DIR)/generators/conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
 	cmake --build $(RELEASE_DIR)
