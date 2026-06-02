@@ -5,8 +5,9 @@ PROFILE_BUILD ?=
 PROFILE_BUILD_SUFFIX := $(if $(PROFILE_BUILD),-$(PROFILE_BUILD),)
 PROFILE_BUILD_LABEL := $(if $(PROFILE_BUILD),$(PROFILE_BUILD),<default>)
 PROFILE_BUILD_ARG := $(if $(PROFILE_BUILD), PROFILE_BUILD=$(PROFILE_BUILD),)
-PROFILE_DIR := $(BUILD_DIR)/Profile$(PROFILE_BUILD_SUFFIX)
-PROFILE_RESULTS_ROOT := $(BUILD_DIR)/profile$(PROFILE_BUILD_SUFFIX)
+PROFILE_ROOT := $(BUILD_DIR)/profile$(PROFILE_BUILD_SUFFIX)
+PROFILE_DIR := $(PROFILE_ROOT)/cmake
+PROFILE_RESULTS_ROOT := $(PROFILE_ROOT)/results
 PROFILE_RUN_DIR := $(PROFILE_RESULTS_ROOT)/run
 PROFILE_TIME_DIR := $(PROFILE_RESULTS_ROOT)/time
 PROFILE_PERF_DIR := $(PROFILE_RESULTS_ROOT)/perf
@@ -30,7 +31,8 @@ PROFILE_LOG_LEVEL := off
 
 PROFILE_BIN := $(PROFILE_DIR)/parallel-translation
 # Use PROFILE_BUILD=<name> to keep separate profiling builds and results, for
-# example build/Profile-cached-paths and build/profile-cached-paths/perf/perf.data.
+# example build/profile-cached-paths/cmake and
+# build/profile-cached-paths/results/perf/perf.data.
 PERF_DATA := $(PROFILE_PERF_DIR)/perf.data
 HYPERFINE_JSON := $(PROFILE_TIME_DIR)/hyperfine.json
 HEAPTRACK_DATA := $(PROFILE_MEMORY_DIR)/heaptrack.data

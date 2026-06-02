@@ -33,7 +33,7 @@ help: ## Show this help message
 	@echo "  ARGS                         Arguments forwarded to the binary when using 'run'"
 	@echo "                               Example: make run ARGS=\"--input in.txt --output out.txt\""
 	@echo "  PROFILE_INPUT                Input text for profile targets"
-	@echo "  PROFILE_BUILD                Named profiling build and result root"
+	@echo "  PROFILE_BUILD                Named profiling root under build/profile-<name>"
 	@echo "                               Example: make profile-all PROFILE_BUILD=baseline"
 	@echo "  PROFILE_PARALLELISM          Backend parallelism for profile targets"
 	@echo "  PROFILE_BACKEND              Backend provider for profile targets"
