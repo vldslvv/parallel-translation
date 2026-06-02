@@ -2,6 +2,8 @@
 
 PROFILE_BUILD_TYPE := RelWithDebInfo
 PROFILE_BUILD ?=
+PROFILE_BUILD_A ?=
+PROFILE_BUILD_B ?=
 PROFILE_BUILD_SUFFIX := $(if $(PROFILE_BUILD),-$(PROFILE_BUILD),)
 PROFILE_BUILD_LABEL := $(if $(PROFILE_BUILD),$(PROFILE_BUILD),<default>)
 PROFILE_BUILD_ARG := $(if $(PROFILE_BUILD), PROFILE_BUILD=$(PROFILE_BUILD),)
@@ -15,8 +17,23 @@ PROFILE_MEMORY_DIR := $(PROFILE_RESULTS_ROOT)/memory
 PROFILE_SYSCALLS_DIR := $(PROFILE_RESULTS_ROOT)/syscalls
 PROFILE_COMPARE_DIR := $(PROFILE_RESULTS_ROOT)/compare-postprocessor
 PROFILE_GENERATORS_DIR := $(PROFILE_DIR)/build/$(PROFILE_BUILD_TYPE)/generators
+PROFILE_COMPARE_A_ROOT := $(BUILD_DIR)/profile-$(PROFILE_BUILD_A)
+PROFILE_COMPARE_B_ROOT := $(BUILD_DIR)/profile-$(PROFILE_BUILD_B)
+PROFILE_COMPARE_A_RESULTS_ROOT := $(PROFILE_COMPARE_A_ROOT)/results
+PROFILE_COMPARE_B_RESULTS_ROOT := $(PROFILE_COMPARE_B_ROOT)/results
+PROFILE_COMPARE_A_RUN_OUTPUT := $(PROFILE_COMPARE_A_RESULTS_ROOT)/run/output.txt
+PROFILE_COMPARE_B_RUN_OUTPUT := $(PROFILE_COMPARE_B_RESULTS_ROOT)/run/output.txt
+PROFILE_COMPARE_A_HYPERFINE_JSON := $(PROFILE_COMPARE_A_RESULTS_ROOT)/time/hyperfine.json
+PROFILE_COMPARE_B_HYPERFINE_JSON := $(PROFILE_COMPARE_B_RESULTS_ROOT)/time/hyperfine.json
+PROFILE_COMPARE_A_PERF_DATA := $(PROFILE_COMPARE_A_RESULTS_ROOT)/perf/perf.data
+PROFILE_COMPARE_B_PERF_DATA := $(PROFILE_COMPARE_B_RESULTS_ROOT)/perf/perf.data
+PROFILE_COMPARE_A_HEAPTRACK_DATA := $(PROFILE_COMPARE_A_RESULTS_ROOT)/memory/heaptrack.data.zst
+PROFILE_COMPARE_B_HEAPTRACK_DATA := $(PROFILE_COMPARE_B_RESULTS_ROOT)/memory/heaptrack.data.zst
+PROFILE_COMPARE_A_STRACE_SUMMARY := $(PROFILE_COMPARE_A_RESULTS_ROOT)/syscalls/strace-summary.txt
+PROFILE_COMPARE_B_STRACE_SUMMARY := $(PROFILE_COMPARE_B_RESULTS_ROOT)/syscalls/strace-summary.txt
 
 PROFILE_INPUT := texts/latin/de_magia.txt
+# PROFILE_INPUT := texts/latin/de_magia_repeated_for_profiling.txt
 PROFILE_RUN_OUTPUT := $(PROFILE_RUN_DIR)/output.txt
 PROFILE_TIME_OUTPUT := $(PROFILE_TIME_DIR)/output.txt
 PROFILE_PERF_OUTPUT := $(PROFILE_PERF_DIR)/output.txt
@@ -35,7 +52,8 @@ PROFILE_BIN := $(PROFILE_DIR)/parallel-translation
 # build/profile-cached-paths/results/perf/perf.data.
 PERF_DATA := $(PROFILE_PERF_DIR)/perf.data
 HYPERFINE_JSON := $(PROFILE_TIME_DIR)/hyperfine.json
-HEAPTRACK_DATA := $(PROFILE_MEMORY_DIR)/heaptrack.data
+HEAPTRACK_OUTPUT := $(PROFILE_MEMORY_DIR)/heaptrack.data
+HEAPTRACK_DATA := $(HEAPTRACK_OUTPUT).zst
 STRACE_SUMMARY := $(PROFILE_SYSCALLS_DIR)/strace-summary.txt
 PROFILE_COMPARE_JSON := $(PROFILE_COMPARE_DIR)/compare-postprocessor.json
 # Do not profile forked helpers such as Morpheus; keep CPU samples scoped to
@@ -57,6 +75,21 @@ define clear_profile_results_if_needed
 			y|Y) rm -rf "$(1)" ;; \
 			*) echo "aborted; run 'make profile-clean$(PROFILE_BUILD_ARG)' to clear it."; exit 1 ;; \
 		esac; \
+	fi
+endef
+
+define require_profile_compare_builds
+	@if [ -z "$(PROFILE_BUILD_A)" ] || [ -z "$(PROFILE_BUILD_B)" ]; then \
+		echo "PROFILE_BUILD_A and PROFILE_BUILD_B are required."; \
+		echo "example: make $(1) PROFILE_BUILD_A=before-loop PROFILE_BUILD_B=after-loop"; \
+		exit 1; \
+	fi
+endef
+
+define require_profile_compare_file
+	@if [ ! -f "$(1)" ]; then \
+		echo "missing required profiling result: $(1)"; \
+		exit 1; \
 	fi
 endef
 
@@ -95,7 +128,11 @@ profile-cpu-report: ## Open perf report for saved profile
 profile-memory: profile-build ## Profile allocations with heaptrack
 	$(call clear_profile_results_if_needed,$(PROFILE_MEMORY_DIR))
 	@mkdir -p $(PROFILE_MEMORY_DIR)
-	heaptrack --output $(HEAPTRACK_DATA) $(call profile_command,$(PROFILE_MEMORY_OUTPUT))
+	heaptrack --record-only --output $(HEAPTRACK_OUTPUT) $(call profile_command,$(PROFILE_MEMORY_OUTPUT))
+
+.PHONY: profile-memory-report
+profile-memory-report: ## Open heaptrack GUI for saved memory profile
+	heaptrack --analyze "$(HEAPTRACK_DATA)"
 
 .PHONY: profile-syscalls
 profile-syscalls: profile-build ## Summarize syscalls and subprocesses with strace
@@ -113,6 +150,47 @@ profile-compare-postprocessor: profile-build ## Compare Morpheus postprocessing 
 
 .PHONY: profile-all
 profile-all: profile-run profile-time profile-cpu profile-memory profile-syscalls ## Run all profiling tools for selected PROFILE_BUILD
+
+.PHONY: profile-compare-output
+profile-compare-output: ## Compare run outputs for PROFILE_BUILD_A and PROFILE_BUILD_B
+	$(call require_profile_compare_builds,$@)
+	$(call require_profile_compare_file,$(PROFILE_COMPARE_A_RUN_OUTPUT))
+	$(call require_profile_compare_file,$(PROFILE_COMPARE_B_RUN_OUTPUT))
+	diff -u "$(PROFILE_COMPARE_A_RUN_OUTPUT)" "$(PROFILE_COMPARE_B_RUN_OUTPUT)"
+
+.PHONY: profile-compare-time
+profile-compare-time: ## Compare hyperfine timing results for PROFILE_BUILD_A and PROFILE_BUILD_B
+	$(call require_profile_compare_builds,$@)
+	$(call require_profile_compare_file,$(PROFILE_COMPARE_A_HYPERFINE_JSON))
+	$(call require_profile_compare_file,$(PROFILE_COMPARE_B_HYPERFINE_JSON))
+	@jq -n -r --arg a "$(PROFILE_BUILD_A)" --arg b "$(PROFILE_BUILD_B)" --slurpfile before "$(PROFILE_COMPARE_A_HYPERFINE_JSON)" --slurpfile after "$(PROFILE_COMPARE_B_HYPERFINE_JSON)" 'def row($$name; $$x; $$y): "\($$name)\t\($$x)\t\($$y)\t\($$y - $$x)\t\(if $$x == 0 then "n/a" else (($$y - $$x) / $$x * 100) end)"; ($$before[0].results[0]) as $$x | ($$after[0].results[0]) as $$y | "metric\t\($$a)\t\($$b)\tdelta\tdelta_pct", row("mean"; $$x.mean; $$y.mean), row("stddev"; $$x.stddev; $$y.stddev), row("median"; $$x.median; $$y.median), row("min"; $$x.min; $$y.min), row("max"; $$x.max; $$y.max)'
+
+.PHONY: profile-compare-cpu
+profile-compare-cpu: ## Compare perf CPU profiles for PROFILE_BUILD_A and PROFILE_BUILD_B
+	$(call require_profile_compare_builds,$@)
+	$(call require_profile_compare_file,$(PROFILE_COMPARE_A_PERF_DATA))
+	$(call require_profile_compare_file,$(PROFILE_COMPARE_B_PERF_DATA))
+	perf diff --compute delta --sort comm,dso,symbol "$(PROFILE_COMPARE_A_PERF_DATA)" "$(PROFILE_COMPARE_B_PERF_DATA)"
+
+.PHONY: profile-compare-memory
+profile-compare-memory: ## Print heaptrack summaries for PROFILE_BUILD_A and PROFILE_BUILD_B
+	$(call require_profile_compare_builds,$@)
+	$(call require_profile_compare_file,$(PROFILE_COMPARE_A_HEAPTRACK_DATA))
+	$(call require_profile_compare_file,$(PROFILE_COMPARE_B_HEAPTRACK_DATA))
+	@echo "== $(PROFILE_BUILD_A) =="
+	heaptrack_print "$(PROFILE_COMPARE_A_HEAPTRACK_DATA)" | sed -n '1,80p'
+	@echo "== $(PROFILE_BUILD_B) =="
+	heaptrack_print "$(PROFILE_COMPARE_B_HEAPTRACK_DATA)" | sed -n '1,80p'
+
+.PHONY: profile-compare-syscalls
+profile-compare-syscalls: ## Compare strace syscall summaries for PROFILE_BUILD_A and PROFILE_BUILD_B
+	$(call require_profile_compare_builds,$@)
+	$(call require_profile_compare_file,$(PROFILE_COMPARE_A_STRACE_SUMMARY))
+	$(call require_profile_compare_file,$(PROFILE_COMPARE_B_STRACE_SUMMARY))
+	diff -u "$(PROFILE_COMPARE_A_STRACE_SUMMARY)" "$(PROFILE_COMPARE_B_STRACE_SUMMARY)" || true
+
+.PHONY: profile-compare
+profile-compare: profile-compare-output profile-compare-time profile-compare-cpu profile-compare-memory profile-compare-syscalls ## Compare existing results for PROFILE_BUILD_A and PROFILE_BUILD_B
 
 .PHONY: profile-clean
 profile-clean: ## Remove profiling outputs
