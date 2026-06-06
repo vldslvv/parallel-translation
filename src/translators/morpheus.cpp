@@ -181,8 +181,11 @@ static std::unordered_map<std::string, std::string> parse_cruncher_output(const 
 }
 
 Translator make_morpheus_macron_translator(bool render_breves) {
-    auto paths = morpheus_runtime_paths();
-    return [render_breves, paths=std::move(paths)](std::string_view text) -> std::string {
+    const auto paths = morpheus_runtime_paths();
+    const std::string path_env =
+        paths.helper_dir + ":" + (std::getenv("PATH") ? std::getenv("PATH") : "");
+
+    return [render_breves, paths, path_env](std::string_view text) -> std::string {
         auto split = split_words(std::string{text});
         if (split.words.empty())
             return std::string{text};
@@ -193,8 +196,6 @@ Translator make_morpheus_macron_translator(bool render_breves) {
         for (const auto& w : split.words)
             input += w + '\n';
 
-        std::string path_env =
-            paths.helper_dir + ":" + (std::getenv("PATH") ? std::getenv("PATH") : "");
         spdlog::debug("morpheus: cruncher={}", paths.cruncher);
 
         auto result = run_process(paths.cruncher, input,

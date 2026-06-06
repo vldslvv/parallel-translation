@@ -114,24 +114,25 @@ static int translate_file(const Reader& read, const Translator& translate,
     };
 
     // Dispatch: one async task per sentence, limited by semaphore
-    for (const auto& item : read(input)) {
-        if (!item) {
-            spdlog::error("{}", item.error());
+    // Reader defines text chunks, default reader splitst text into sentences.
+    for (const auto& text_or_error : read(input)) {
+        if (!text_or_error) {
+            spdlog::error("{}", text_or_error.error());
             return exit_code::input_error;
         }
-        spdlog::debug("{}", *item);
+        spdlog::debug("{}", *text_or_error);
         sem.acquire();
         if (auto rc = flush(); rc != 0)
             return rc;
 
         // Sentence copies item value so it's retained after outer loop advances
-        auto fn = [&sem, &translate, sentence = *item]() -> std::string {
+        auto fn = [&sem, &translate, sentence = *text_or_error]() -> std::string {
             // Releases semaphore regardless of execution outcome
             ScopeExit guard{[&sem] { sem.release(); }};
             return translate(sentence);
         };
         auto fut = std::async(std::launch::async, fn);
-        work.emplace_back(*item, std::move(fut));
+        work.emplace_back(*text_or_error, std::move(fut));
     }
 
     // Drain remaining
