@@ -2,6 +2,7 @@
 
 #include <cerrno>
 #include <cstdlib>
+#include <fcntl.h>
 #include <stdexcept>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -12,7 +13,7 @@
 // and provide text output from stdou
 ProcessResult run_process(const std::string& binary_path, const std::string& input,
                           const std::vector<std::pair<std::string, std::string>>& env_vars,
-                          const std::vector<std::string>& args) {
+                          const std::vector<std::string>& args, bool suppress_output) {
     int pipe_in[2];
     int pipe_out[2];
 
@@ -48,6 +49,13 @@ ProcessResult run_process(const std::string& binary_path, const std::string& inp
         // Make file descriptor 1 (stdout) point to the write end of the output pipe.
         // Anything the child writes to stdout goes into the pipe.
         dup2(pipe_out[1], STDOUT_FILENO);
+        if (suppress_output) {
+            int dev_null = open("/dev/null", O_WRONLY);
+            if (dev_null != -1) {
+                dup2(dev_null, STDERR_FILENO);
+                close(dev_null);
+            }
+        }
 
         // Close rest of the original in/out pipes after duplication
         close(pipe_in[0]);

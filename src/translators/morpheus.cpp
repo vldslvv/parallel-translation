@@ -180,6 +180,10 @@ static std::unordered_map<std::string, std::string> parse_cruncher_output(const 
     return word_map;
 }
 
+static bool should_suppress_cruncher_output() {
+    return spdlog::get_level() > spdlog::level::debug;
+}
+
 Translator make_morpheus_macron_translator(bool render_breves) {
     const auto paths = morpheus_runtime_paths();
     const std::string path_env =
@@ -198,8 +202,9 @@ Translator make_morpheus_macron_translator(bool render_breves) {
 
         spdlog::debug("morpheus: cruncher={}", paths.cruncher);
 
-        auto result = run_process(paths.cruncher, input,
-                                  {{"PATH", path_env}, {"MORPHLIB", paths.stemlib}}, {"-L"});
+        auto result =
+            run_process(paths.cruncher, input, {{"PATH", path_env}, {"MORPHLIB", paths.stemlib}},
+                        {"-L"}, should_suppress_cruncher_output());
 
         spdlog::debug("morpheus: exit={} output_len={}", result.exit_code, result.output.size());
 
