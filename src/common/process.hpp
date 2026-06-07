@@ -41,11 +41,12 @@ class PersistentProcess {
     // same read() call are kept in read_buffer_ for the next read_line().
     std::optional<std::string> read_line();
     int close_and_wait();
-    bool running() const { return pid_ > 0; }
+    bool running();
 
   private:
     int stdin_fd_ = -1;
     int stdout_fd_ = -1;
     int pid_ = -1;
     std::string read_buffer_;
+    std::optional<int> exit_code_;
 };

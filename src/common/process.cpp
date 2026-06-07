@@ -204,7 +204,8 @@ PersistentProcess::~PersistentProcess() {
 PersistentProcess::PersistentProcess(PersistentProcess&& other) noexcept
     : stdin_fd_(std::exchange(other.stdin_fd_, -1)),
       stdout_fd_(std::exchange(other.stdout_fd_, -1)), pid_(std::exchange(other.pid_, -1)),
-      read_buffer_(std::move(other.read_buffer_)) {}
+      read_buffer_(std::move(other.read_buffer_)),
+      exit_code_(std::exchange(other.exit_code_, std::nullopt)) {}
 
 PersistentProcess& PersistentProcess::operator=(PersistentProcess&& other) noexcept {
     if (this != &other) {
@@ -213,6 +214,7 @@ PersistentProcess& PersistentProcess::operator=(PersistentProcess&& other) noexc
         stdout_fd_ = std::exchange(other.stdout_fd_, -1);
         pid_ = std::exchange(other.pid_, -1);
         read_buffer_ = std::move(other.read_buffer_);
+        exit_code_ = std::exchange(other.exit_code_, std::nullopt);
     }
     return *this;
 }
@@ -280,20 +282,74 @@ int PersistentProcess::close_and_wait() {
         close(stdin_fd_);
         stdin_fd_ = -1;
     }
+    // This object no longer needs to read from the child. Closing stdout_fd_
+    // also prevents the descriptor from leaking if the child exits badly.
     if (stdout_fd_ != -1) {
         close(stdout_fd_);
         stdout_fd_ = -1;
     }
+
+    // No waitable child remains. This happens after close_and_wait() already
+    // ran, after running() reaped an exited child with WNOHANG, or on a
+    // moved-from object. Preserve a cached exit code when one exists; otherwise
+    // keep the old "nothing to close" result of 0.
     if (pid_ <= 0)
-        return 0;
+        return exit_code_.value_or(0);
 
     int status = 0;
     while (waitpid(pid_, &status, 0) == -1) {
+        // Signals can interrupt waitpid before it observes the child status.
+        // Retry because the child is still our responsibility to reap.
         if (errno == EINTR)
             continue;
+
+        // Any other waitpid failure means we cannot obtain a reliable child
+        // status. Mark the process as no longer waitable and cache failure.
         pid_ = -1;
-        return -1;
+        exit_code_ = -1;
+        return exit_code_.value();
     }
+
+    // waitpid returned this child, so status is valid and the child has been
+    // reaped. Cache the normal exit code; use -1 for signal termination or
+    // other non-normal exits where there is no process exit code.
     pid_ = -1;
-    return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+    exit_code_ = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+    return exit_code_.value();
+}
+
+bool PersistentProcess::running() {
+    // No child pid is currently owned by this object. The child may never have
+    // started, may have been moved away, or may already have been reaped.
+    if (pid_ <= 0)
+        return false;
+
+    int status = 0;
+    pid_t result = waitpid(pid_, &status, WNOHANG);
+
+    if (result == 0) {
+        // WNOHANG makes waitpid poll instead of block. A zero result means the
+        // child is still running and no status was available to reap.
+        return true;
+    }
+
+    if (result == -1 && errno == EINTR) {
+        // A signal interrupted the status check before waitpid could answer.
+        // Treat the process as running so a later call can retry the poll.
+        return true;
+    }
+
+    if (result == pid_) {
+        // The child exited before this check. waitpid has reaped it and filled
+        // status, so cache the decoded result for close_and_wait().
+        pid_ = -1;
+        exit_code_ = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+        return false;
+    }
+
+    // ECHILD or another waitpid failure: there is no live waitable child whose
+    // exit status we can collect, and status is not meaningful in this branch.
+    pid_ = -1;
+    exit_code_ = -1;
+    return false;
 }
