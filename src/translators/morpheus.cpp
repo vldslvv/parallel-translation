@@ -3,9 +3,13 @@
 #include "text/text.hpp"
 
 #include <array>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <iterator>
+#include <memory>
+#include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -184,12 +188,84 @@ static bool should_suppress_cruncher_output() {
     return spdlog::get_level() > spdlog::level::debug;
 }
 
+class MorpheusSession {
+  public:
+    MorpheusSession(MorpheusRuntimePaths paths, std::string path_env)
+        : paths_{std::move(paths)}, path_env_{std::move(path_env)} {}
+
+    std::string analyze(const std::string& input) {
+        std::lock_guard lock{mutex_};
+        if (disabled_)
+            return analyze_one_shot(input);
+
+        try {
+            ensure_process();
+            // A persistent stdin/stdout pipe has no per-request EOF marker:
+            // EOF would terminate the whole cruncher process. Morpheus echoes
+            // lines starting with '#', so a unique comment line is a cheap
+            // request boundary that comes back on stdout after this batch.
+            const auto sentinel = "#PT_END_" + std::to_string(++request_id_);
+            process_->write_all(input);
+            process_->write_all(sentinel);
+            process_->write_all("\n");
+
+            std::string output;
+            while (auto line = process_->read_line()) {
+                if (*line == sentinel)
+                    return output;
+                output += *line;
+                output += '\n';
+            }
+            throw std::runtime_error("morpheus process closed stdout");
+        } catch (const std::exception& e) {
+            spdlog::warn("morpheus persistent process failed, falling back to one-shot: {}",
+                         e.what());
+            process_.reset();
+            disabled_ = true;
+            return analyze_one_shot(input);
+        }
+    }
+
+  private:
+    void ensure_process() {
+        if (process_ && process_->running())
+            return;
+
+        spdlog::debug("morpheus: cruncher={}", paths_.cruncher);
+        // cruncher already reads stdin in a loop, but when stdout is a pipe it
+        // block-buffers output and the parent would not see each response until
+        // much later. stdbuf -oL forces line buffering without patching Morpheus.
+        process_.emplace("stdbuf", std::vector<std::pair<std::string, std::string>>{
+                                      {"PATH", path_env_}, {"MORPHLIB", paths_.stemlib}},
+                         std::vector<std::string>{"-oL", paths_.cruncher, "-L"},
+                         should_suppress_cruncher_output());
+    }
+
+    std::string analyze_one_shot(const std::string& input) const {
+        auto result =
+            run_process(paths_.cruncher, input, {{"PATH", path_env_}, {"MORPHLIB", paths_.stemlib}},
+                        {"-L"}, should_suppress_cruncher_output());
+        spdlog::debug("morpheus: exit={} output_len={}", result.exit_code, result.output.size());
+        return result.output;
+    }
+
+    MorpheusRuntimePaths paths_;
+    std::string path_env_;
+    std::mutex mutex_;
+    std::optional<PersistentProcess> process_;
+    uint64_t request_id_ = 0;
+    bool disabled_ = false;
+};
+
 Translator make_morpheus_macron_translator(bool render_breves) {
     const auto paths = morpheus_runtime_paths();
     const std::string path_env =
         paths.helper_dir + ":" + (std::getenv("PATH") ? std::getenv("PATH") : "");
+    // Translator is std::function, so the returned lambda must be copyable;
+    // shared_ptr keeps the session alive across lambda copies.
+    const auto session = std::make_shared<MorpheusSession>(paths, path_env);
 
-    return [render_breves, paths, path_env](std::string_view text) -> std::string {
+    return [render_breves, session](std::string_view text) -> std::string {
         auto split = split_words(std::string{text});
         if (split.words.empty())
             return std::string{text};
@@ -200,15 +276,9 @@ Translator make_morpheus_macron_translator(bool render_breves) {
         for (const auto& w : split.words)
             input += w + '\n';
 
-        spdlog::debug("morpheus: cruncher={}", paths.cruncher);
-
-        auto result =
-            run_process(paths.cruncher, input, {{"PATH", path_env}, {"MORPHLIB", paths.stemlib}},
-                        {"-L"}, should_suppress_cruncher_output());
-
-        spdlog::debug("morpheus: exit={} output_len={}", result.exit_code, result.output.size());
-
-        auto word_map = parse_cruncher_output(result.output, render_breves);
+        auto output = session->analyze(input);
+        spdlog::debug("morpheus: output_len={}", output.size());
+        auto word_map = parse_cruncher_output(output, render_breves);
 
         SplitText out = split;
         for (size_t i = 0; i < split.words.size(); ++i) {

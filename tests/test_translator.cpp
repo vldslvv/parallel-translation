@@ -17,6 +17,7 @@
 #include "config.hpp"
 #include "test_helpers.hpp"
 #include "translators/chat_api.hpp"
+#include "translators/morpheus.hpp"
 
 static const char* INPUT = ASSETS_DIR "/latin_example.txt";
 static const char* OUTPUT = ASSETS_DIR "/latin_example_out.txt";
@@ -100,6 +101,15 @@ TEST_CASE("translates input file to output file", "[integration]") {
     CHECK(out.contains("Stub"));
 
     std::remove(OUTPUT);
+}
+
+TEST_CASE("morpheus postprocessor handles repeated calls through one translator",
+          "[translator]") {
+    auto translate = make_morpheus_macron_translator();
+
+    CHECK(translate("firmamenti.") == "firmāmentī.");
+    CHECK(translate("caelum.") == "caelum.");
+    CHECK(translate("?!") == "?!");
 }
 
 TEST_CASE("loads provider-specific chat api config from toml and env", "[config]") {
