@@ -19,13 +19,15 @@
 #include <spdlog/spdlog.h>
 #include <unistd.h>
 
+namespace {
+
 struct MorpheusRuntimePaths {
     std::string cruncher;
     std::string helper_dir;
     std::string stemlib;
 };
 
-static MorpheusRuntimePaths morpheus_runtime_paths() {
+MorpheusRuntimePaths morpheus_runtime_paths() {
     std::error_code ec;
     std::array<char, 4096> buf{};
     // Linux exposes the current executable path through this procfs symlink.
@@ -64,7 +66,7 @@ static MorpheusRuntimePaths morpheus_runtime_paths() {
 // Convert Perseus quantity notation to Unicode.
 // '_' after a vowel → macron (ā ē ī ō ū / Ā Ē Ī Ō Ū).
 // '^' after a vowel → breve (ă ĕ ĭ ŏ ŭ / Ă Ĕ Ĭ Ŏ Ŭ) when render_breves is true, else dropped.
-static std::string perseus_to_unicode(std::string_view s, bool render_breves) {
+std::string perseus_to_unicode(std::string_view s, bool render_breves) {
     static constexpr std::string_view vowels = "aeiouAEIOU";
     static constexpr const char* macrons[] = {"ā", "ē", "ī", "ō", "ū", "Ā", "Ē", "Ī", "Ō", "Ū"};
     static constexpr const char* breves[] = {"ă", "ĕ", "ĭ", "ŏ", "ŭ", "Ă", "Ĕ", "Ĭ", "Ŏ", "Ŭ"};
@@ -111,7 +113,7 @@ static std::string perseus_to_unicode(std::string_view s, bool render_breves) {
 //   P   = one-letter part-of-speech code
 //   form terminates at first ',', '\t', or ' '
 //   lemma may carry a '#N' disambiguation suffix (we don't care about it)
-static std::string extract_first_form(std::string_view line, bool render_breves) {
+std::string extract_first_form(std::string_view line, bool render_breves) {
     auto nl_start = line.find("<NL>");
     if (nl_start == std::string_view::npos)
         return {};
@@ -145,8 +147,8 @@ static std::string extract_first_form(std::string_view line, bool render_breves)
 // Parse the full cruncher output into a word→macronized map.
 // The output contains word echo lines interspersed with <NL>…</NL> analysis lines.
 // Lines beginning with ':' are timing/cache messages and are skipped.
-static std::unordered_map<std::string, std::string> parse_cruncher_output(const std::string& output,
-                                                                          bool render_breves) {
+std::unordered_map<std::string, std::string> parse_cruncher_output(const std::string& output,
+                                                                   bool render_breves) {
     std::unordered_map<std::string, std::string> word_map;
     std::string current_word;
 
@@ -184,7 +186,7 @@ static std::unordered_map<std::string, std::string> parse_cruncher_output(const 
     return word_map;
 }
 
-static bool should_suppress_cruncher_output() {
+bool should_suppress_cruncher_output() {
     return spdlog::get_level() > spdlog::level::debug;
 }
 
@@ -256,6 +258,8 @@ class MorpheusSession {
     uint64_t request_id_ = 0;
     bool disabled_ = false;
 };
+
+} // namespace
 
 Translator make_morpheus_macron_translator(bool render_breves) {
     const auto paths = morpheus_runtime_paths();

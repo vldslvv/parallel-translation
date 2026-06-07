@@ -23,7 +23,9 @@
 #include "writers/pdf.hpp"
 #include "writers/writer.hpp"
 
-static std::expected<Reader, int> get_reader(const ReaderConfig& config) {
+namespace {
+
+std::expected<Reader, int> get_reader(const ReaderConfig& config) {
     if (config.format == "txt") {
         return txt_reader;
     }
@@ -35,7 +37,7 @@ static std::expected<Reader, int> get_reader(const ReaderConfig& config) {
     return std::unexpected(exit_code::usage_error);
 }
 
-static std::expected<Translator, int> get_translator(const BackendConfig& config) {
+std::expected<Translator, int> get_translator(const BackendConfig& config) {
     if (config.provider == "stub") {
         return stub_translator;
     }
@@ -55,7 +57,7 @@ static std::expected<Translator, int> get_translator(const BackendConfig& config
     return std::unexpected(exit_code::usage_error);
 }
 
-static std::expected<Translator, int> get_postprocessor(const PostprocessingConfig& config) {
+std::expected<Translator, int> get_postprocessor(const PostprocessingConfig& config) {
     if (config.provider == "morpheus") {
         return make_morpheus_macron_translator(config.breves);
     }
@@ -75,9 +77,9 @@ static std::expected<Translator, int> get_postprocessor(const PostprocessingConf
     return std::unexpected(exit_code::usage_error);
 }
 
-static int translate_file(const Reader& read, const Translator& translate,
-                          const Translator& read_postprocess, FormattedWriter& formatted_write,
-                          std::string_view input, int parallelism) {
+int translate_file(const Reader& read, const Translator& translate,
+                   const Translator& read_postprocess, FormattedWriter& formatted_write,
+                   std::string_view input, int parallelism) {
     constexpr int sem_max = 64;
     if (parallelism > sem_max) {
         spdlog::error("parallelism {} exceeds maximum {}", parallelism, sem_max);
@@ -153,6 +155,8 @@ static int translate_file(const Reader& read, const Translator& translate,
     }
     return 0;
 }
+
+} // namespace
 
 int run(int argc, char* argv[]) {
     auto parsed = get_config(argc, argv);

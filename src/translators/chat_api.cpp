@@ -8,6 +8,8 @@
 
 #include <spdlog/spdlog.h>
 
+namespace {
+
 const std::string translate_latin_to_english_prompt =
     "You translate Latin text to English.\n"
     "Rules:\n"
@@ -28,7 +30,7 @@ const std::string add_macrons_to_latin_prompt =
     "Input: Gallia est omnis divisa in partes tres.\n"
     "Output: Gallia est omnis d\u012bv\u012bsa in part\u0113s tr\u0113s.";
 
-static std::string trim_right(std::string result) {
+std::string trim_right(std::string result) {
     auto end = result.find_last_not_of(" \t\n\r\f\v");
     if (end != std::string::npos)
         result.erase(end + 1);
@@ -49,48 +51,47 @@ struct ChatApiStyle {
     std::string (*response_content)(const std::string& body);
 };
 
-static httplib::Headers auth_headers(const ChatApiConfig& cfg) {
+httplib::Headers auth_headers(const ChatApiConfig& cfg) {
     httplib::Headers headers;
     if (!cfg.api_key.empty())
         headers.emplace("Authorization", "Bearer " + cfg.api_key);
     return headers;
 }
 
-static nlohmann::json chat_messages(std::string_view prompt, std::string_view text) {
+nlohmann::json chat_messages(std::string_view prompt, std::string_view text) {
     return nlohmann::json::array({{{"role", "system"}, {"content", std::string{prompt}}},
                                   {{"role", "user"}, {"content", std::string{text}}}});
 }
 
-static ChatApiRequest make_ollama_chat_request(const ChatApiConfig& cfg, std::string_view prompt,
-                                               std::string_view text) {
+ChatApiRequest make_ollama_chat_request(const ChatApiConfig& cfg, std::string_view prompt,
+                                        std::string_view text) {
     return ChatApiRequest{.headers = auth_headers(cfg),
                           .body = {{"model", cfg.model},
                                    {"messages", chat_messages(prompt, text)},
                                    {"stream", false}}};
 }
 
-static std::string ollama_chat_response_content(const std::string& body) {
+std::string ollama_chat_response_content(const std::string& body) {
     auto json = nlohmann::json::parse(body);
     return json["message"]["content"].get<std::string>();
 }
 
-static ChatApiRequest make_openai_chat_completions_request(const ChatApiConfig& cfg,
-                                                           std::string_view prompt,
-                                                           std::string_view text) {
+ChatApiRequest make_openai_chat_completions_request(const ChatApiConfig& cfg,
+                                                    std::string_view prompt,
+                                                    std::string_view text) {
     return ChatApiRequest{.headers = auth_headers(cfg),
                           .body = {{"model", cfg.model},
                                    {"messages", chat_messages(prompt, text)},
                                    {"stream", false}}};
 }
 
-static std::string openai_chat_completions_response_content(const std::string& body) {
+std::string openai_chat_completions_response_content(const std::string& body) {
     auto json = nlohmann::json::parse(body);
     return json["choices"][0]["message"]["content"].get<std::string>();
 }
 
-static ChatApiRequest make_anthropic_messages_request(const ChatApiConfig& cfg,
-                                                       std::string_view prompt,
-                                                       std::string_view text) {
+ChatApiRequest make_anthropic_messages_request(const ChatApiConfig& cfg, std::string_view prompt,
+                                               std::string_view text) {
     return ChatApiRequest{.headers = auth_headers(cfg),
                           .body = {{"model", cfg.model},
                                    {"system", std::string{prompt}},
@@ -100,7 +101,7 @@ static ChatApiRequest make_anthropic_messages_request(const ChatApiConfig& cfg,
                                    {"stream", false}}};
 }
 
-static std::string anthropic_messages_response_content(const std::string& body) {
+std::string anthropic_messages_response_content(const std::string& body) {
     auto json = nlohmann::json::parse(body);
     std::string content;
     for (const auto& block : json["content"]) {
@@ -110,7 +111,7 @@ static std::string anthropic_messages_response_content(const std::string& body) 
     return content;
 }
 
-static const ChatApiStyle& chat_api_style(const ChatApiConfig& cfg) {
+const ChatApiStyle& chat_api_style(const ChatApiConfig& cfg) {
     static const ChatApiStyle ollama_chat{
         .name = "ollama-chat",
         .make_request = make_ollama_chat_request,
@@ -172,6 +173,8 @@ Translator make_chat_api_translator(const ChatApiConfig& cfg, const std::string&
         return trim_right(std::move(result));
     };
 }
+
+} // namespace
 
 Translator make_chat_api_latin_to_english_translator(const ChatApiConfig& cfg) {
     return make_chat_api_translator(cfg, translate_latin_to_english_prompt);

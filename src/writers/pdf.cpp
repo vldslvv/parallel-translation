@@ -19,7 +19,9 @@
 
 #include "common/exit_codes.hpp"
 
-static std::string find_italic_font() {
+namespace {
+
+std::string find_italic_font() {
     static const char* candidates[] = {
         "/usr/share/fonts/liberation-fonts/LiberationSans-Italic.ttf",
         "/usr/share/fonts/truetype/liberation/LiberationSans-Italic.ttf",
@@ -32,7 +34,7 @@ static std::string find_italic_font() {
     return {};
 }
 
-static std::string find_font() {
+std::string find_font() {
     static const char* candidates[] = {
         "/usr/share/fonts/liberation-fonts/LiberationSans-Regular.ttf",
         "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
@@ -45,6 +47,8 @@ static std::string find_font() {
     }
     return {};
 }
+
+} // namespace
 
 struct PdfWriter::Impl {
     PDFWriter pdf;

@@ -3,7 +3,9 @@
 #include <fstream>
 #include <spdlog/spdlog.h>
 
-static std::generator<std::string> make_chunks(std::ifstream& file) {
+namespace {
+
+std::generator<std::string> make_chunks(std::ifstream& file) {
     std::string line;
     while (std::getline(file, line)) {
         if (!line.empty() && line.back() == '\r')
@@ -11,6 +13,8 @@ static std::generator<std::string> make_chunks(std::ifstream& file) {
         co_yield line.empty() ? std::string{"\n\n"} : line + "\n";
     }
 }
+
+} // namespace
 
 std::generator<std::expected<std::string, std::string>> txt_reader(std::string_view path) {
     spdlog::debug("reading file: {}", path);

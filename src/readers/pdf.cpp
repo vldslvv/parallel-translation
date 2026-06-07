@@ -5,7 +5,9 @@
 #include <spdlog/spdlog.h>
 #include <string_view>
 
-static std::generator<std::string> make_chunks(poppler::document* document) {
+namespace {
+
+std::generator<std::string> make_chunks(poppler::document* document) {
     for (int i = 0; i < document->pages(); i++) {
         auto page = std::unique_ptr<poppler::page>(document->create_page(i));
         auto page_rect = page->page_rect();
@@ -17,6 +19,8 @@ static std::generator<std::string> make_chunks(poppler::document* document) {
         co_yield std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size());
     }
 }
+
+} // namespace
 
 std::generator<std::expected<std::string, std::string>> pdf_reader(std::string_view path) {
     spdlog::debug("reading file: {}", path);

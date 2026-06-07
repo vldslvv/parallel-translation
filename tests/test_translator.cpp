@@ -19,8 +19,10 @@
 #include "translators/chat_api.hpp"
 #include "translators/morpheus.hpp"
 
-static const char* INPUT = ASSETS_DIR "/latin_example.txt";
-static const char* OUTPUT = ASSETS_DIR "/latin_example_out.txt";
+namespace {
+
+const char* INPUT = ASSETS_DIR "/latin_example.txt";
+const char* OUTPUT = ASSETS_DIR "/latin_example_out.txt";
 
 class EnvVar {
   public:
@@ -73,7 +75,7 @@ class TestServer {
     std::thread thread_;
 };
 
-static std::filesystem::path make_config_dir() {
+std::filesystem::path make_config_dir() {
     auto dir = std::filesystem::temp_directory_path() /
                ("parallel-translation-test-" +
                 std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
@@ -81,12 +83,14 @@ static std::filesystem::path make_config_dir() {
     return dir;
 }
 
-static Config get_test_config() {
+Config get_test_config() {
     const char* argv[] = {"app", "--reader-path", INPUT, "--writer-path", OUTPUT};
     auto parsed = get_config(std::size(argv), const_cast<char**>(argv));
     REQUIRE(parsed.has_value());
     return std::move(parsed).value();
 }
+
+} // namespace
 
 TEST_CASE("translates input file to output file", "[integration]") {
     const char* argv[] = {"app",  "--backend-provider", "stub", "--postprocessor-provider",

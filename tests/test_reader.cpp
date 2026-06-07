@@ -6,18 +6,22 @@
 #include "app.hpp"
 #include "test_helpers.hpp"
 
-static void write_file(const char* path, const std::string& content) {
+namespace {
+
+void write_file(const char* path, const std::string& content) {
     std::ofstream f{path};
     f << content;
 }
 
-static std::string run_pass(const char* in, const char* out) {
+std::string run_pass(const char* in, const char* out) {
     const char* argv[] = {"app",  "--backend-provider", "pass", "--postprocessor-provider",
                           "none", "--reader-path",      in,     "--writer-path",
                           out};
     run(std::size(argv), const_cast<char**>(argv));
     return read_file(out);
 }
+
+} // namespace
 
 TEST_CASE("reader: two sentences", "[integration]") {
     const char* IN = ASSETS_DIR "/reader_two_sentences_in.txt";
