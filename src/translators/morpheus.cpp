@@ -14,6 +14,7 @@
 #include <string_view>
 #include <system_error>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include <spdlog/spdlog.h>
@@ -237,16 +238,25 @@ class MorpheusSession {
         // cruncher already reads stdin in a loop, but when stdout is a pipe it
         // block-buffers output and the parent would not see each response until
         // much later. stdbuf -oL forces line buffering without patching Morpheus.
-        process_.emplace("stdbuf", std::vector<std::pair<std::string, std::string>>{
-                                      {"PATH", path_env_}, {"MORPHLIB", paths_.stemlib}},
-                         std::vector<std::string>{"-oL", paths_.cruncher, "-L"},
+        auto env = std::vector<std::pair<std::string, std::string>>{
+            {"PATH", path_env_},
+            {"MORPHLIB", paths_.stemlib},
+        };
+        auto args = std::vector<std::string>{"-oL", paths_.cruncher, "-L"};
+
+        process_.emplace("stdbuf", std::move(env), std::move(args),
                          should_suppress_cruncher_output());
     }
 
     std::string analyze_one_shot(const std::string& input) const {
-        auto result =
-            run_process(paths_.cruncher, input, {{"PATH", path_env_}, {"MORPHLIB", paths_.stemlib}},
-                        {"-L"}, should_suppress_cruncher_output());
+        auto env = std::vector<std::pair<std::string, std::string>>{
+            {"PATH", path_env_},
+            {"MORPHLIB", paths_.stemlib},
+        };
+        auto args = std::vector<std::string>{"-L"};
+
+        auto result = run_process(paths_.cruncher, input, std::move(env), std::move(args),
+                                  should_suppress_cruncher_output());
         spdlog::debug("morpheus: exit={} output_len={}", result.exit_code, result.output.size());
         return result.output;
     }
