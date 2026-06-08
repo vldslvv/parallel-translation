@@ -226,7 +226,7 @@ class MorpheusSession {
                 morpheus_input += '\n';
             }
 
-            auto morpheus_output = analyze_with_persistent_process(morpheus_input);
+            auto morpheus_output = analyze_raw(morpheus_input);
             auto morpheus_output_map = parse_cruncher_output(morpheus_output, render_breves);
 
             // Cache both recognized and unrecognized words. Missing Morpheus
@@ -265,29 +265,12 @@ class MorpheusSession {
                          should_suppress_cruncher_output());
     }
 
-    std::string analyze_with_persistent_process(const std::string& morpheus_input) {
+    std::string analyze_raw(const std::string& morpheus_input) {
         if (disabled_)
             return analyze_one_shot(morpheus_input);
 
         try {
-            ensure_process();
-            // A persistent stdin/stdout pipe has no per-request EOF marker:
-            // EOF would terminate the whole cruncher process. Morpheus echoes
-            // lines starting with '#', so a unique comment line is a cheap
-            // request boundary that comes back on stdout after this batch.
-            const auto sentinel = "#PT_END_" + std::to_string(++request_id_);
-            process_->write_all(morpheus_input);
-            process_->write_all(sentinel);
-            process_->write_all("\n");
-
-            std::string output;
-            while (auto line = process_->read_line()) {
-                if (*line == sentinel)
-                    return output;
-                output += *line;
-                output += '\n';
-            }
-            throw std::runtime_error("morpheus process closed stdout");
+            return analyze_with_persistent_process(morpheus_input);
         } catch (const std::exception& e) {
             spdlog::warn("morpheus persistent process failed, falling back to one-shot: {}",
                          e.what());
@@ -295,6 +278,27 @@ class MorpheusSession {
             disabled_ = true;
             return analyze_one_shot(morpheus_input);
         }
+    }
+
+    std::string analyze_with_persistent_process(const std::string& morpheus_input) {
+        ensure_process();
+        // A persistent stdin/stdout pipe has no per-request EOF marker:
+        // EOF would terminate the whole cruncher process. Morpheus echoes
+        // lines starting with '#', so a unique comment line is a cheap
+        // request boundary that comes back on stdout after this batch.
+        const auto sentinel = "#PT_END_" + std::to_string(++request_id_);
+        process_->write_all(morpheus_input);
+        process_->write_all(sentinel);
+        process_->write_all("\n");
+
+        std::string output;
+        while (auto line = process_->read_line()) {
+            if (*line == sentinel)
+                return output;
+            output += *line;
+            output += '\n';
+        }
+        throw std::runtime_error("morpheus process closed stdout");
     }
 
     std::string analyze_one_shot(const std::string& input) const {
