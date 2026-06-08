@@ -116,6 +116,13 @@ TEST_CASE("morpheus postprocessor handles repeated calls through one translator"
     CHECK(translate("?!") == "?!");
 }
 
+TEST_CASE("morpheus postprocessor preserves unrecognized words mixed with latin",
+          "[translator]") {
+    auto translate = make_morpheus_macron_translator();
+
+    CHECK(translate("firmamenti zzzznotlatin.") == "firmāmentī zzzznotlatin.");
+}
+
 TEST_CASE("loads provider-specific chat api config from toml and env", "[config]") {
     auto config_dir = make_config_dir();
     std::ofstream config{config_dir / "parallel-translation" / "config.toml"};

@@ -14,6 +14,7 @@
 #include <string_view>
 #include <system_error>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -196,37 +197,53 @@ class MorpheusSession {
     MorpheusSession(MorpheusRuntimePaths paths, std::string path_env)
         : paths_{std::move(paths)}, path_env_{std::move(path_env)} {}
 
-    std::string analyze(const std::string& input) {
+    std::vector<std::string> analyze(const std::vector<std::string>& words, bool render_breves) {
         std::lock_guard lock{mutex_};
-        if (disabled_)
-            return analyze_one_shot(input);
 
-        try {
-            ensure_process();
-            // A persistent stdin/stdout pipe has no per-request EOF marker:
-            // EOF would terminate the whole cruncher process. Morpheus echoes
-            // lines starting with '#', so a unique comment line is a cheap
-            // request boundary that comes back on stdout after this batch.
-            const auto sentinel = "#PT_END_" + std::to_string(++request_id_);
-            process_->write_all(input);
-            process_->write_all(sentinel);
-            process_->write_all("\n");
+        // Final result
+        std::vector<std::string> result_words(words.size());
+        // Unique words to send to the morpheus process
+        std::vector<std::string> uncached_words;
+        // A set to make sure only unique uncached words get sent
+        std::unordered_set<std::string> queued;
 
-            std::string output;
-            while (auto line = process_->read_line()) {
-                if (*line == sentinel)
-                    return output;
-                output += *line;
-                output += '\n';
+        // Look in the cache and collect cache misses. Repeated misses in one
+        // input only need to be sent to Morpheus once.
+        for (size_t i = 0; i < words.size(); ++i) {
+            auto it = word_cache_.find(words[i]);
+            if (it != word_cache_.end()) {
+                result_words[i] = it->second;
+            } else if (queued.insert(words[i]).second) {
+                uncached_words.push_back(words[i]);
             }
-            throw std::runtime_error("morpheus process closed stdout");
-        } catch (const std::exception& e) {
-            spdlog::warn("morpheus persistent process failed, falling back to one-shot: {}",
-                         e.what());
-            process_.reset();
-            disabled_ = true;
-            return analyze_one_shot(input);
         }
+
+        if (!uncached_words.empty()) {
+            // Build cruncher input: one uncached word per line.
+            std::string morpheus_input;
+            for (const auto& word : uncached_words) {
+                morpheus_input += word;
+                morpheus_input += '\n';
+            }
+
+            auto morpheus_output = analyze_with_persistent_process(morpheus_input);
+            auto morpheus_output_map = parse_cruncher_output(morpheus_output, render_breves);
+
+            // Cache both recognized and unrecognized words. Missing Morpheus
+            // entries preserve the original word, matching the old behavior.
+            for (const auto& word : uncached_words) {
+                auto it = morpheus_output_map.find(word);
+                word_cache_[word] = it != morpheus_output_map.end() ? it->second : word;
+            }
+
+            // Fill result slots that were not already served by the cache.
+            for (size_t i = 0; i < words.size(); ++i) {
+                if (result_words[i].empty())
+                    result_words[i] = word_cache_[words[i]];
+            }
+        }
+
+        return result_words;
     }
 
   private:
@@ -248,6 +265,38 @@ class MorpheusSession {
                          should_suppress_cruncher_output());
     }
 
+    std::string analyze_with_persistent_process(const std::string& morpheus_input) {
+        if (disabled_)
+            return analyze_one_shot(morpheus_input);
+
+        try {
+            ensure_process();
+            // A persistent stdin/stdout pipe has no per-request EOF marker:
+            // EOF would terminate the whole cruncher process. Morpheus echoes
+            // lines starting with '#', so a unique comment line is a cheap
+            // request boundary that comes back on stdout after this batch.
+            const auto sentinel = "#PT_END_" + std::to_string(++request_id_);
+            process_->write_all(morpheus_input);
+            process_->write_all(sentinel);
+            process_->write_all("\n");
+
+            std::string output;
+            while (auto line = process_->read_line()) {
+                if (*line == sentinel)
+                    return output;
+                output += *line;
+                output += '\n';
+            }
+            throw std::runtime_error("morpheus process closed stdout");
+        } catch (const std::exception& e) {
+            spdlog::warn("morpheus persistent process failed, falling back to one-shot: {}",
+                         e.what());
+            process_.reset();
+            disabled_ = true;
+            return analyze_one_shot(morpheus_input);
+        }
+    }
+
     std::string analyze_one_shot(const std::string& input) const {
         auto env = std::vector<std::pair<std::string, std::string>>{
             {"PATH", path_env_},
@@ -267,6 +316,7 @@ class MorpheusSession {
     std::optional<PersistentProcess> process_;
     uint64_t request_id_ = 0;
     bool disabled_ = false;
+    std::unordered_map<std::string, std::string> word_cache_;
 };
 
 } // namespace
@@ -284,23 +334,10 @@ Translator make_morpheus_macron_translator(bool render_breves) {
         if (split.words.empty())
             return std::string{text};
 
-        // Build cruncher input: one word per line
-        std::string input;
-        input.reserve(text.size() + split.words.size());
-        for (const auto& w : split.words)
-            input += w + '\n';
+        std::vector<std::string> output = session->analyze(split.words, render_breves);
 
-        auto output = session->analyze(input);
-        spdlog::debug("morpheus: output_len={}", output.size());
-        auto word_map = parse_cruncher_output(output, render_breves);
+        SplitText out{.words=output, .separators=split.separators};
 
-        SplitText out = split;
-        for (size_t i = 0; i < split.words.size(); ++i) {
-            auto it = word_map.find(split.words[i]);
-            if (it != word_map.end())
-                out.words[i] = it->second;
-            // else: keep original
-        }
         auto reconstructed = reconstruct(out);
         spdlog::debug("morpheus macron: input: {}\n  output: {}", text, reconstructed);
         return reconstructed;
