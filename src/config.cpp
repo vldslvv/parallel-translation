@@ -74,6 +74,8 @@ const ProviderInfo* provider_info(std::string_view provider) {
     return nullptr;
 }
 
+// Provider and model are separate string identifiers supplied by configuration.
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 ChatApiRoute chat_api_route(std::string_view provider, std::string_view model) {
     if (provider == "ollama")
         return {.api_style = "ollama-chat", .endpoint_path = "/api/chat"};

@@ -38,6 +38,8 @@ void exec_child(const std::string& binary_path,
 // unix buffer size, 64kb by default
 // The process to be run should accept text input via stdin
 // and provide text output from stdout
+// Executable path and stdin text are distinct roles in this process API.
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 ProcessResult run_process(const std::string& binary_path, const std::string& input,
                           const std::vector<std::pair<std::string, std::string>>& env_vars,
                           const std::vector<std::string>& args, bool suppress_output) {
@@ -305,7 +307,7 @@ int PersistentProcess::close_and_wait() {
         // status. Mark the process as no longer waitable and cache failure.
         pid_ = -1;
         exit_code_ = -1;
-        return exit_code_.value();
+        return exit_code_.value_or(-1);
     }
 
     // waitpid returned this child, so status is valid and the child has been
@@ -313,7 +315,7 @@ int PersistentProcess::close_and_wait() {
     // other non-normal exits where there is no process exit code.
     pid_ = -1;
     exit_code_ = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
-    return exit_code_.value();
+    return exit_code_.value_or(-1);
 }
 
 bool PersistentProcess::running() {

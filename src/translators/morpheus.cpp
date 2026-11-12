@@ -245,9 +245,9 @@ class MorpheusSession {
     }
 
   private:
-    void ensure_process() {
+    PersistentProcess& ensure_process() {
         if (process_ && process_->running())
-            return;
+            return *process_;
 
         spdlog::debug("morpheus: cruncher={}", paths_.cruncher);
         // cruncher already reads stdin in a loop, but when stdout is a pipe it
@@ -259,7 +259,7 @@ class MorpheusSession {
         };
         auto args = std::vector<std::string>{"-oL", paths_.cruncher, "-L"};
 
-        process_.emplace("stdbuf", std::move(env), std::move(args),
+        return process_.emplace("stdbuf", std::move(env), std::move(args),
                          should_suppress_cruncher_output());
     }
 
@@ -279,18 +279,18 @@ class MorpheusSession {
     }
 
     std::string analyze_with_persistent_process(const std::string& morpheus_input) {
-        ensure_process();
+        auto& process = ensure_process();
         // A persistent stdin/stdout pipe has no per-request EOF marker:
         // EOF would terminate the whole cruncher process. Morpheus echoes
         // lines starting with '#', so a unique comment line is a cheap
         // request boundary that comes back on stdout after this batch.
         const auto sentinel = "#PT_END_" + std::to_string(++request_id_);
-        process_->write_all(morpheus_input);
-        process_->write_all(sentinel);
-        process_->write_all("\n");
+        process.write_all(morpheus_input);
+        process.write_all(sentinel);
+        process.write_all("\n");
 
         std::string output;
-        while (auto line = process_->read_line()) {
+        while (auto line = process.read_line()) {
             if (*line == sentinel)
                 return output;
             output += *line;

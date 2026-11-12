@@ -1,8 +1,9 @@
 #include "sentence_splitter.hpp"
 #include <spdlog/spdlog.h>
 
-std::generator<std::string> split_sentences(
-    std::generator<std::string> chunks) { // NOLINT(readability-function-cognitive-complexity)
+// Streaming sentence state intentionally stays together across chunk boundaries.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+std::generator<std::string> split_sentences(std::generator<std::string> chunks) {
     std::string sentence;
     bool prev_was_newline = false;
 

@@ -10,14 +10,14 @@
 
 namespace {
 
-const std::string translate_latin_to_english_prompt =
+constexpr std::string_view translate_latin_to_english_prompt =
     "You translate Latin text to English.\n"
     "Rules:\n"
     "- Return only the English translation, no preamble, commentary, or explanation.\n"
     "- Preserve the paragraph and line structure of the original.\n"
     "- Do not add interpretive notes, alternative readings, or parenthetical remarks.";
 
-const std::string add_macrons_to_latin_prompt =
+constexpr std::string_view add_macrons_to_latin_prompt =
     "You add macrons to Latin vowels (a\u2192\u0101, e\u2192\u0113, i\u2192\u012b, o\u2192\u014d, "
     "u\u2192\u016b).\n"
     "Rules:\n"
@@ -137,7 +137,7 @@ const ChatApiStyle& chat_api_style(const ChatApiConfig& cfg) {
     throw std::runtime_error{"chat-api: unknown api style: " + cfg.api_style};
 }
 
-Translator make_chat_api_translator(const ChatApiConfig& cfg, const std::string& prompt) {
+Translator make_chat_api_translator(const ChatApiConfig& cfg, std::string_view prompt) {
     if (cfg.provider == "openrouter" && cfg.api_key.empty())
         throw std::runtime_error{"chat-api: OpenRouter requires an API key"};
     if (cfg.provider == "opencode" && cfg.api_key.empty())
@@ -146,7 +146,7 @@ Translator make_chat_api_translator(const ChatApiConfig& cfg, const std::string&
     // after it is captured by the translator lambda below.
     const ChatApiStyle* style = &chat_api_style(cfg);
 
-    return [cfg, prompt, style](std::string_view text) -> std::string {
+    return [cfg, prompt = std::string{prompt}, style](std::string_view text) -> std::string {
         // TODO: Consider reusing an httplib::Client across calls so repeated remote requests can
         // keep connections alive. If Translator calls become concurrent, guard shared client state
         // or use one client per worker/thread.

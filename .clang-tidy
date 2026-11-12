@@ -9,3 +9,7 @@ Checks: >
   -readability-braces-around-statements
 WarningsAsErrors: "*"
 HeaderFilterRegex: "src/.*"
+
+CheckOptions:
+  # Count test logic rather than Catch2 assertion macro internals.
+  readability-function-cognitive-complexity.IgnoreMacros: true

@@ -77,6 +77,8 @@ std::expected<Translator, int> get_postprocessor(const PostprocessingConfig& con
     return std::unexpected(exit_code::usage_error);
 }
 
+// Translation and postprocessing intentionally share the Translator callable type.
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 int translate_file(const Reader& read, const Translator& translate,
                    const Translator& read_postprocess, FormattedWriter& formatted_write,
                    std::string_view input, int parallelism) {

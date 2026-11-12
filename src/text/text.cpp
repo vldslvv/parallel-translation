@@ -60,10 +60,10 @@ char32_t decode_utf8(std::string::const_iterator& it, std::string::const_iterato
     if (it == end) return 0;
 
     // Cast to unsigned to avoid sign-extension issues in bit operations
-    auto b = static_cast<unsigned char>(*it);
+    auto b = static_cast<uint32_t>(static_cast<unsigned char>(*it));
 
     // Single-byte ASCII (0xxxxxxx) — no decoding needed
-    if (b < 0x80) { ++it; return b; }
+    if (b < 0x80U) { ++it; return b; }
 
     uint32_t cp;
     int extra;
@@ -73,18 +73,20 @@ char32_t decode_utf8(std::string::const_iterator& it, std::string::const_iterato
     //   1110xxxx = 3-byte (U+0800–U+FFFF)
     //   11110xxx = 4-byte (U+10000–U+10FFFF, e.g. emoji)
     // Mask out the prefix bits to get the initial data bits.
-    if      ((b & 0xE0) == 0xC0) { cp = b & 0x1F; extra = 1; }
-    else if ((b & 0xF0) == 0xE0) { cp = b & 0x0F; extra = 2; }
-    else if ((b & 0xF8) == 0xF0) { cp = b & 0x07; extra = 3; }
+    if      ((b & 0xE0U) == 0xC0U) { cp = b & 0x1FU; extra = 1; }
+    else if ((b & 0xF0U) == 0xE0U) { cp = b & 0x0FU; extra = 2; }
+    else if ((b & 0xF8U) == 0xF0U) { cp = b & 0x07U; extra = 3; }
     else { ++it; return 0; } // Invalid leading byte
 
     for (int i = 0; i < extra; ++i) {
         ++it;
         // Each continuation byte must match 10xxxxxx
-        if (it == end || (*it & 0xC0) != 0x80) return 0;
+        if (it == end) return 0;
+        const auto continuation = static_cast<uint32_t>(static_cast<unsigned char>(*it));
+        if ((continuation & 0xC0U) != 0x80U) return 0;
         // Shift accumulated bits left and append 6 payload bits
         // from this continuation byte
-        cp = (cp << 6) | (*it & 0x3F);
+        cp = (cp << 6U) | (continuation & 0x3FU);
     }
 
     ++it;
