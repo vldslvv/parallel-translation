@@ -188,9 +188,7 @@ std::unordered_map<std::string, std::string> parse_cruncher_output(const std::st
     return word_map;
 }
 
-bool should_suppress_cruncher_output() {
-    return spdlog::get_level() > spdlog::level::debug;
-}
+bool should_suppress_cruncher_output() { return spdlog::get_level() > spdlog::level::debug; }
 
 class MorpheusSession {
   public:
@@ -340,7 +338,7 @@ Translator make_morpheus_macron_translator(bool render_breves) {
 
         std::vector<std::string> output = session->analyze(split.words, render_breves);
 
-        SplitText out{.words=output, .separators=split.separators};
+        SplitText out{.words = output, .separators = split.separators};
 
         auto reconstructed = reconstruct(out);
         spdlog::debug("morpheus macron: input: {}\n  output: {}", text, reconstructed);

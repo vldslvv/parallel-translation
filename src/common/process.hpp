@@ -17,8 +17,7 @@ struct ProcessResult {
 // and provide text output from stdou
 ProcessResult run_process(const std::string& binary_path, const std::string& input,
                           const std::vector<std::pair<std::string, std::string>>& env_vars = {},
-                          const std::vector<std::string>& args = {},
-                          bool suppress_output = false);
+                          const std::vector<std::string>& args = {}, bool suppress_output = false);
 
 class PersistentProcess {
   public:

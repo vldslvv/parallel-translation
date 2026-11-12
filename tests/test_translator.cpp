@@ -107,8 +107,7 @@ TEST_CASE("translates input file to output file", "[integration]") {
     std::remove(OUTPUT);
 }
 
-TEST_CASE("morpheus postprocessor handles repeated calls through one translator",
-          "[translator]") {
+TEST_CASE("morpheus postprocessor handles repeated calls through one translator", "[translator]") {
     auto translate = make_morpheus_macron_translator();
 
     CHECK(translate("firmamenti.") == "firmāmentī.");
@@ -116,8 +115,7 @@ TEST_CASE("morpheus postprocessor handles repeated calls through one translator"
     CHECK(translate("?!") == "?!");
 }
 
-TEST_CASE("morpheus postprocessor preserves unrecognized words mixed with latin",
-          "[translator]") {
+TEST_CASE("morpheus postprocessor preserves unrecognized words mixed with latin", "[translator]") {
     auto translate = make_morpheus_macron_translator();
 
     CHECK(translate("firmamenti zzzznotlatin.") == "firmāmentī zzzznotlatin.");
@@ -505,8 +503,7 @@ TEST_CASE("chat api openrouter provider posts to chat completions with bearer au
     CHECK(called);
 }
 
-TEST_CASE("chat api opencode provider posts to chat completions with bearer auth",
-          "[translator]") {
+TEST_CASE("chat api opencode provider posts to chat completions with bearer auth", "[translator]") {
     TestServer test_server;
     std::atomic_bool called{false};
 
@@ -542,21 +539,21 @@ TEST_CASE("chat api openrouter anthropic style posts to messages with bearer aut
     TestServer test_server;
     std::atomic_bool called{false};
 
-    test_server.server().Post(
-        "/api/v1/messages", [&](const httplib::Request& req, httplib::Response& res) {
-            called = true;
-            CHECK(req.get_header_value("Authorization") == "Bearer anthropic-key");
-            auto body = nlohmann::json::parse(req.body);
-            CHECK(body["model"] == "anthropic/claude-sonnet-4");
-            CHECK(body["stream"] == false);
-            CHECK(body["system"].get<std::string>().contains("You translate Latin text"));
-            REQUIRE(body["messages"].size() == 1);
-            CHECK(body["messages"][0]["role"] == "user");
-            CHECK(body["messages"][0]["content"] == "Salve");
-            res.set_content(
-                R"({"content":[{"type":"text","text":"Hel"},{"type":"text","text":"lo  "},{"type":"tool_use","id":"ignored"}]})",
-                "application/json");
-        });
+    test_server.server().Post("/api/v1/messages", [&](const httplib::Request& req,
+                                                      httplib::Response& res) {
+        called = true;
+        CHECK(req.get_header_value("Authorization") == "Bearer anthropic-key");
+        auto body = nlohmann::json::parse(req.body);
+        CHECK(body["model"] == "anthropic/claude-sonnet-4");
+        CHECK(body["stream"] == false);
+        CHECK(body["system"].get<std::string>().contains("You translate Latin text"));
+        REQUIRE(body["messages"].size() == 1);
+        CHECK(body["messages"][0]["role"] == "user");
+        CHECK(body["messages"][0]["content"] == "Salve");
+        res.set_content(
+            R"({"content":[{"type":"text","text":"Hel"},{"type":"text","text":"lo  "},{"type":"tool_use","id":"ignored"}]})",
+            "application/json");
+    });
     test_server.start();
 
     ChatApiConfig cfg;

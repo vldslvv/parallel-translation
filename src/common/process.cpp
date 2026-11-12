@@ -197,9 +197,7 @@ PersistentProcess::PersistentProcess(
     pid_ = child_pid;
 }
 
-PersistentProcess::~PersistentProcess() {
-    close_and_wait();
-}
+PersistentProcess::~PersistentProcess() { close_and_wait(); }
 
 PersistentProcess::PersistentProcess(PersistentProcess&& other) noexcept
     : stdin_fd_(std::exchange(other.stdin_fd_, -1)),

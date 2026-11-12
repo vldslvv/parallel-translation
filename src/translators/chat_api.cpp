@@ -92,13 +92,13 @@ std::string openai_chat_completions_response_content(const std::string& body) {
 
 ChatApiRequest make_anthropic_messages_request(const ChatApiConfig& cfg, std::string_view prompt,
                                                std::string_view text) {
-    return ChatApiRequest{.headers = auth_headers(cfg),
-                          .body = {{"model", cfg.model},
-                                   {"system", std::string{prompt}},
-                                   {"messages",
-                                    nlohmann::json::array(
-                                        {{{"role", "user"}, {"content", std::string{text}}}})},
-                                   {"stream", false}}};
+    return ChatApiRequest{
+        .headers = auth_headers(cfg),
+        .body = {{"model", cfg.model},
+                 {"system", std::string{prompt}},
+                 {"messages",
+                  nlohmann::json::array({{{"role", "user"}, {"content", std::string{text}}}})},
+                 {"stream", false}}};
 }
 
 std::string anthropic_messages_response_content(const std::string& body) {
@@ -157,8 +157,8 @@ Translator make_chat_api_translator(const ChatApiConfig& cfg, const std::string&
         spdlog::debug("chat-api: provider={} style={} POST {} model={} text_len={}\n  request: {}",
                       cfg.provider, style->name, cfg.endpoint_path, cfg.model, text.size(),
                       std::string{text});
-        auto res =
-            client.Post(cfg.endpoint_path, request.headers, request.body.dump(), "application/json");
+        auto res = client.Post(cfg.endpoint_path, request.headers, request.body.dump(),
+                               "application/json");
 
         if (!res)
             throw std::runtime_error{"chat-api: no response from " + cfg.host};

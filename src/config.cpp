@@ -41,15 +41,11 @@ struct ChatApiRoute {
 };
 
 constexpr std::array<ProviderInfo, 3> providers{{
-    {.name = "ollama",
-     .default_host = "http://localhost:11434",
-     .default_model = "gemma3:27b"},
+    {.name = "ollama", .default_host = "http://localhost:11434", .default_model = "gemma3:27b"},
     {.name = "openrouter",
      .default_host = "https://openrouter.ai",
      .default_model = "google/gemma-4-31b-it"},
-    {.name = "opencode",
-     .default_host = "https://opencode.ai",
-     .default_model = "kimi-k2.6"},
+    {.name = "opencode", .default_host = "https://opencode.ai", .default_model = "kimi-k2.6"},
 }};
 
 struct UserConfig {
