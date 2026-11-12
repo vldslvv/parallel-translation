@@ -306,7 +306,7 @@ class MorpheusSession {
         };
         auto args = std::vector<std::string>{"-L"};
 
-        auto result = run_process(paths_.cruncher, input, std::move(env), std::move(args),
+        auto result = run_process(paths_.cruncher, input, env, args,
                                   should_suppress_cruncher_output());
         spdlog::debug("morpheus: exit={} output_len={}", result.exit_code, result.output.size());
         return result.output;
@@ -326,13 +326,13 @@ class MorpheusSession {
 Translator make_morpheus_macron_translator(bool render_breves) {
     const auto paths = morpheus_runtime_paths();
     const std::string path_env =
-        paths.helper_dir + ":" + (std::getenv("PATH") ? std::getenv("PATH") : "");
+        paths.helper_dir + ":" + ((std::getenv("PATH") != nullptr) ? std::getenv("PATH") : "");
     // Translator is std::function, so the returned lambda must be copyable;
     // shared_ptr keeps the session alive across lambda copies.
     const auto session = std::make_shared<MorpheusSession>(paths, path_env);
 
     return [render_breves, session](std::string_view text) -> std::string {
-        auto split = split_words(std::string{text});
+        auto split = split_words(text);
         if (split.words.empty())
             return std::string{text};
 

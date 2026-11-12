@@ -60,7 +60,7 @@ httplib::Headers auth_headers(const ChatApiConfig& cfg) {
 
 nlohmann::json chat_messages(std::string_view prompt, std::string_view text) {
     return nlohmann::json::array({{{"role", "system"}, {"content", std::string{prompt}}},
-                                  {{"role", "user"}, {"content", std::string{text}}}});
+                                  {{"role", "user"}, {"content", std::string{text}}},});
 }
 
 ChatApiRequest make_ollama_chat_request(const ChatApiConfig& cfg, std::string_view prompt,
@@ -68,7 +68,7 @@ ChatApiRequest make_ollama_chat_request(const ChatApiConfig& cfg, std::string_vi
     return ChatApiRequest{.headers = auth_headers(cfg),
                           .body = {{"model", cfg.model},
                                    {"messages", chat_messages(prompt, text)},
-                                   {"stream", false}}};
+                                   {"stream", false},},};
 }
 
 std::string ollama_chat_response_content(const std::string& body) {
@@ -82,7 +82,7 @@ ChatApiRequest make_openai_chat_completions_request(const ChatApiConfig& cfg,
     return ChatApiRequest{.headers = auth_headers(cfg),
                           .body = {{"model", cfg.model},
                                    {"messages", chat_messages(prompt, text)},
-                                   {"stream", false}}};
+                                   {"stream", false},},};
 }
 
 std::string openai_chat_completions_response_content(const std::string& body) {
@@ -97,8 +97,8 @@ ChatApiRequest make_anthropic_messages_request(const ChatApiConfig& cfg, std::st
         .body = {{"model", cfg.model},
                  {"system", std::string{prompt}},
                  {"messages",
-                  nlohmann::json::array({{{"role", "user"}, {"content", std::string{text}}}})},
-                 {"stream", false}}};
+                  nlohmann::json::array({{{"role", "user"}, {"content", std::string{text}}}}),},
+                 {"stream", false},},};
 }
 
 std::string anthropic_messages_response_content(const std::string& body) {
@@ -193,8 +193,8 @@ Translator make_chat_api_macron_translator(const ChatApiConfig& cfg) {
         auto translation = translator(original);
 
         // Verify that original text is the same as translated, except for macrons
-        auto original_split = split_words(std::string{original});
-        auto translated_split = split_words(std::string{translation});
+        auto original_split = split_words(original);
+        auto translated_split = split_words(translation);
 
         if (original_split.words.size() != translated_split.words.size()) {
             spdlog::warn("chat-api macron: word count mismatch\n  original:   {}\n  translated: {}",

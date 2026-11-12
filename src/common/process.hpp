@@ -35,7 +35,7 @@ class PersistentProcess {
     PersistentProcess(PersistentProcess&& other) noexcept;
     PersistentProcess& operator=(PersistentProcess&& other) noexcept;
 
-    void write_all(std::string_view input);
+    void write_all(std::string_view input) const;
     // Reads one stdout line without the trailing newline. Extra bytes from the
     // same read() call are kept in read_buffer_ for the next read_line().
     std::optional<std::string> read_line();

@@ -16,7 +16,7 @@ void write_file(const char* path, const std::string& content) {
 std::string run_pass(const char* in, const char* out) {
     const char* argv[] = {"app",  "--backend-provider", "pass", "--postprocessor-provider",
                           "none", "--reader-path",      in,     "--writer-path",
-                          out};
+                          out,};
     run(std::size(argv), const_cast<char**>(argv));
     return read_file(out);
 }
@@ -96,8 +96,8 @@ TEST_CASE("reader: leading whitespace before first sentence is stripped", "[inte
     auto result = run_pass(IN, OUT);
     CHECK(result.contains("Hello world.\nHello world."));
     // Output must not start with whitespace before "Hello"
-    CHECK(!result.starts_with("\n"));
-    CHECK(!result.starts_with(" "));
+    CHECK(!result.starts_with('\n'));
+    CHECK(!result.starts_with(' '));
     std::remove(IN);
     std::remove(OUT);
 }

@@ -88,7 +88,7 @@ int translate_file(const Reader& read, const Translator& translate,
     std::counting_semaphore<sem_max> sem{parallelism};
     std::deque<std::pair<std::string, std::future<std::string>>> work;
 
-    auto flush = [&work, &formatted_write, &read_postprocess]() -> int {
+    auto flush = [&work, &formatted_write, &read_postprocess] -> int {
         while (!work.empty()) {
             auto& [original, fut] = work.front();
             if (fut.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
@@ -128,7 +128,7 @@ int translate_file(const Reader& read, const Translator& translate,
             return rc;
 
         // Sentence copies item value so it's retained after outer loop advances
-        auto fn = [&sem, &translate, sentence = *text_or_error]() -> std::string {
+        auto fn = [&sem, &translate, sentence = *text_or_error] -> std::string {
             // Releases semaphore regardless of execution outcome
             ScopeExit guard{[&sem] { sem.release(); }};
             return translate(sentence);

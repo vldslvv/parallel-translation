@@ -217,7 +217,7 @@ PersistentProcess& PersistentProcess::operator=(PersistentProcess&& other) noexc
     return *this;
 }
 
-void PersistentProcess::write_all(std::string_view input) {
+void PersistentProcess::write_all(std::string_view input) const {
     const char* data = input.data();
     size_t remaining = input.size();
     while (remaining > 0) {

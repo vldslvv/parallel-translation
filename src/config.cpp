@@ -44,9 +44,9 @@ constexpr std::array<ProviderInfo, 3> providers{{
     {.name = "ollama", .default_host = "http://localhost:11434", .default_model = "gemma3:27b"},
     {.name = "openrouter",
      .default_host = "https://openrouter.ai",
-     .default_model = "google/gemma-4-31b-it"},
+     .default_model = "google/gemma-4-31b-it",},
     {.name = "opencode", .default_host = "https://opencode.ai", .default_model = "kimi-k2.6"},
-}};
+},};
 
 struct UserConfig {
     ReaderConfig reader;
@@ -81,11 +81,11 @@ ChatApiRoute chat_api_route(std::string_view provider, std::string_view model) {
         if (model.starts_with("anthropic/"))
             return {.api_style = "anthropic-messages", .endpoint_path = "/api/v1/messages"};
         return {.api_style = "openai-chat-completions",
-                .endpoint_path = "/api/v1/chat/completions"};
+                .endpoint_path = "/api/v1/chat/completions",};
     }
     if (provider == "opencode")
         return {.api_style = "openai-chat-completions",
-                .endpoint_path = "/zen/go/v1/chat/completions"};
+                .endpoint_path = "/zen/go/v1/chat/completions",};
 
     throw std::runtime_error{"chat-api: unknown provider route: " + std::string{provider}};
 }
@@ -93,14 +93,14 @@ ChatApiRoute chat_api_route(std::string_view provider, std::string_view model) {
 ChatApiUserConfig default_chat_api_user_config(const ProviderInfo& provider) {
     return {.host = std::string{provider.default_host},
             .model = std::string{provider.default_model},
-            .api_key = {}};
+            .api_key = {},};
 }
 
 UserConfig make_default_user_config() {
     UserConfig cfg;
     for (std::size_t i = 0; i < providers.size(); ++i) {
         cfg.chat_api[i] = {.provider = providers[i].name,
-                           .config = default_chat_api_user_config(providers[i])};
+                           .config = default_chat_api_user_config(providers[i]),};
     }
     return cfg;
 }
@@ -317,7 +317,7 @@ std::expected<ChatApiConfig, int> selected_provider_config(const UserConfig& cfg
                          .model = selected->config.model,
                          .api_key = selected->config.api_key,
                          .api_style = std::string{route.api_style},
-                         .endpoint_path = std::string{route.endpoint_path}};
+                         .endpoint_path = std::string{route.endpoint_path},};
 }
 
 void apply_selected_chat_api_config(UserConfig& cfg, const ChatApiConfig& chat_api) {
@@ -424,7 +424,7 @@ std::expected<Config, int> get_config(int argc, char* argv[]) {
                   .postprocessing = std::move(user_config.postprocessing),
                   .backend = std::move(user_config.backend),
                   .writer = std::move(user_config.writer),
-                  .log_level = std::move(user_config.log_level)};
+                  .log_level = std::move(user_config.log_level),};
 
     spdlog::set_level(spdlog::level::from_str(config.log_level));
     log_config(config);

@@ -29,7 +29,7 @@ class EnvVar {
     EnvVar(const char* name, const char* value) : name_{name} {
         if (const char* old = std::getenv(name))
             old_ = old;
-        if (value)
+        if (value != nullptr)
             setenv(name, value, 1);
         else
             unsetenv(name);
@@ -95,7 +95,7 @@ Config get_test_config() {
 TEST_CASE("translates input file to output file", "[integration]") {
     const char* argv[] = {"app",  "--backend-provider", "stub", "--postprocessor-provider",
                           "none", "--reader-path",      INPUT,  "--writer-path",
-                          OUTPUT};
+                          OUTPUT,};
 
     CHECK(run(std::size(argv), const_cast<char**>(argv)) == 0);
 
@@ -404,7 +404,7 @@ TEST_CASE("non-positive parallelism is rejected", "[config]") {
     EnvVar xdg{"XDG_CONFIG_HOME", config_dir.c_str()};
 
     const char* argv[] = {"app", "--backend-parallelism", "0",   "--reader-path",
-                          INPUT, "--writer-path",         OUTPUT};
+                          INPUT, "--writer-path",         OUTPUT,};
     auto parsed = get_config(std::size(argv), const_cast<char**>(argv));
 
     CHECK(!parsed);
@@ -688,7 +688,7 @@ TEST_CASE("cli chat provider selects matching provider config before overrides",
                           "--reader-path",
                           INPUT,
                           "--writer-path",
-                          OUTPUT};
+                          OUTPUT,};
 
     CHECK(run(std::size(argv), const_cast<char**>(argv)) == 0);
     CHECK(called);
@@ -749,7 +749,7 @@ TEST_CASE("cli openrouter anthropic model override selects messages endpoint", "
                           "--reader-path",
                           INPUT,
                           "--writer-path",
-                          OUTPUT};
+                          OUTPUT,};
 
     CHECK(run(std::size(argv), const_cast<char**>(argv)) == 0);
     CHECK(called);
@@ -812,7 +812,7 @@ TEST_CASE("cli chat provider selects opencode config before overrides", "[integr
                           "--reader-path",
                           INPUT,
                           "--writer-path",
-                          OUTPUT};
+                          OUTPUT,};
 
     CHECK(run(std::size(argv), const_cast<char**>(argv)) == 0);
     CHECK(called);
@@ -831,7 +831,7 @@ TEST_CASE("errors on non-existent input file", "[integration]") {
                           ASSETS_DIR // NOLINT(bugprone-suspicious-missing-comma)
                           "/nonexistent.txt",
                           "--writer-path",
-                          OUTPUT};
+                          OUTPUT,};
 
     CHECK(run(std::size(argv), const_cast<char**>(argv)) == exit_code::input_error);
 }
@@ -839,7 +839,7 @@ TEST_CASE("errors on non-existent input file", "[integration]") {
 TEST_CASE("errors when parallelism exceeds semaphore capacity", "[integration]") {
     const char* argv[] = {"app",  "--backend-provider",    "stub", "--postprocessor-provider",
                           "none", "--reader-path",         INPUT,  "--writer-path",
-                          OUTPUT, "--backend-parallelism", "1025"};
+                          OUTPUT, "--backend-parallelism", "1025",};
 
     CHECK(run(std::size(argv), const_cast<char**>(argv)) == exit_code::usage_error);
 
